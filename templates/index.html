@@ -5,459 +5,221 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Жетом Транс — Командировъчни</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800&family=Source+Sans+3:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    body { background: #f4f6fa; }
-    .header-bar {
-      background: linear-gradient(135deg, #1a3a5c 0%, #2563a8 100%);
-      color: white; padding: 18px 30px; border-radius: 0 0 12px 12px;
-      margin-bottom: 30px;
+    :root { --navy:#1a2744; --navy-light:#2a3d5c; --gold:#c8973e; --gold-light:#d4aa5a; --wheat:#e8d5a3; --cream:#f5f0e3; --cream-dark:#ebe3d0; }
+    body { font-family:'Source Sans 3',sans-serif; background:#f0ece2; color:#2c2c2c; margin:0; }
+
+    /* HEADER */
+    .site-header {
+      width:100%; height:72px;
+      background:var(--navy);
+      display:flex; align-items:center; justify-content:space-between;
+      padding:0 32px;
     }
-    .header-bar h1 { font-size: 1.5rem; margin: 0; font-weight: 700; }
-    .header-bar p { margin: 4px 0 0; opacity: 0.8; font-size: 0.9rem; }
-    .card { border: none; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); }
-    .card-header { background: #1a3a5c; color: white; border-radius: 12px 12px 0 0 !important; font-weight: 600; }
-    .btn-primary { background: #2563a8; border-color: #2563a8; }
-    .btn-primary:hover { background: #1a3a5c; border-color: #1a3a5c; }
-    .btn-success { background: #1a7a4a; border-color: #1a7a4a; }
-    .btn-success:hover { background: #145c38; border-color: #145c38; }
-    .stat-box { background: #fff; border-radius: 10px; padding: 15px 20px; text-align: center; box-shadow: 0 1px 6px rgba(0,0,0,0.07); }
-    .stat-box .val { font-size: 2rem; font-weight: 700; color: #2563a8; }
-    .stat-box .lbl { font-size: 0.78rem; color: #888; text-transform: uppercase; letter-spacing: 0.05em; }
-    #resultsSection { display: none; }
-    .table th { background: #e8eef6; color: #1a3a5c; font-size: 0.8rem; }
-    .table td { font-size: 0.82rem; vertical-align: middle; }
-    .spinner-border { width: 1.4rem; height: 1.4rem; }
-    .file-required::after { content: ' *'; color: #dc3545; }
-    .alert-info { background: #e8f0fb; border-color: #b6cfef; color: #1a3a5c; }
-    #unmappedAlert { display: none; }
-    .unmapped-list { font-size: 0.82rem; }
+    .header-brand { display:flex; align-items:center; gap:12px; }
+    .header-brand img { height:44px; }
+    .header-brand .brand-name { font-family:'Playfair Display',serif; font-weight:700; font-size:1.6rem; color:#fff; }
+    .header-brand .brand-sub { font-size:0.85rem; color:var(--wheat); font-weight:400; letter-spacing:0.05em; text-transform:uppercase; }
+    .header-nav { display:flex; gap:6px; }
+    .header-nav a { color:var(--wheat); text-decoration:none; font-weight:500; font-size:1rem; padding:8px 18px; border-radius:6px; transition:all 0.2s; }
+    .header-nav a:hover { background:rgba(255,255,255,0.1); color:#fff; }
+
+    /* APP CONTAINER */
+    .app-wrap { max-width:100%; padding:20px 28px 40px; }
+
+    /* CARDS */
+    .app-card {
+      background:rgba(255,255,255,0.95); border:1px solid var(--cream-dark);
+      border-radius:12px; box-shadow:0 2px 16px rgba(26,39,68,0.05);
+      margin-bottom:20px;
+    }
+    .app-card-hdr {
+      background:var(--navy); color:#fff; padding:14px 24px;
+      border-radius:12px 12px 0 0;
+      font-family:'Playfair Display',serif; font-weight:600; font-size:1.1rem;
+      display:flex; align-items:center; gap:8px;
+    }
+    .app-card-bdy { padding:24px; }
+
+    /* FORM */
+    .form-label { font-weight:600; font-size:1rem; color:var(--navy); margin-bottom:4px; }
+    .form-control,.form-select { border:1.5px solid var(--cream-dark); border-radius:8px; font-size:1rem; padding:10px 14px; background:#fff; }
+    .form-control:focus,.form-select:focus { border-color:var(--gold); box-shadow:0 0 0 3px rgba(200,151,62,0.12); }
+    .form-text { font-size:0.85rem; color:#8a8270; }
+    .file-required::after { content:' *'; color:#c0392b; font-weight:700; }
+
+    /* BUTTONS */
+    .btn-gold { background:linear-gradient(135deg,var(--gold),var(--gold-light)); color:#fff; border:none; font-weight:600; font-size:1rem; padding:12px 28px; border-radius:8px; box-shadow:0 3px 12px rgba(200,151,62,0.2); transition:all 0.2s; }
+    .btn-gold:hover { background:linear-gradient(135deg,#b8872e,var(--gold)); color:#fff; transform:translateY(-1px); }
+    .btn-navy { background:var(--navy); color:#fff; border:none; font-weight:600; font-size:1rem; padding:14px 22px; border-radius:8px; transition:all 0.2s; }
+    .btn-navy:hover { background:var(--navy-light); color:#fff; }
+    .btn-warn { background:linear-gradient(135deg,#e8a838,#d4952c); color:#fff; border:none; font-weight:600; font-size:1rem; padding:14px 22px; border-radius:8px; }
+    .btn-warn:hover { color:#fff; }
+
+    /* STATS */
+    .stat-box { background:#fff; border-radius:10px; padding:16px; text-align:center; border:1px solid var(--cream-dark); }
+    .stat-box .val { font-family:'Playfair Display',serif; font-size:2.2rem; font-weight:700; color:var(--navy); }
+    .stat-box .lbl { font-size:0.85rem; color:#8a8270; text-transform:uppercase; letter-spacing:0.05em; font-weight:600; }
+    .conf-box { background:#fff; border-radius:10px; padding:16px; text-align:center; border:1px solid var(--cream-dark); }
+    .conf-box .val { font-family:'Playfair Display',serif; font-size:2.2rem; font-weight:700; }
+    .conf-box .lbl { font-size:0.85rem; color:#8a8270; text-transform:uppercase; letter-spacing:0.05em; font-weight:600; }
+    .cg { border-left:4px solid #27ae60; } .cg .val { color:#27ae60; }
+    .cy { border-left:4px solid #d4a017; } .cy .val { color:#b8941a; }
+    .cr { border-left:4px solid #c0392b; } .cr .val { color:#c0392b; }
+
+    /* TABLE */
+    .table th { background:var(--navy); color:var(--wheat); font-size:0.88rem; font-weight:600; letter-spacing:0.02em; text-transform:uppercase; padding:10px 12px; border:none; }
+    .table td { font-size:0.92rem; vertical-align:middle; padding:9px 12px; border-color:var(--cream-dark); }
+    .table-hover tbody tr:hover { background:rgba(200,151,62,0.05); }
+    .table-success { background-color:rgba(39,174,96,0.08)!important; }
+    .table-warning { background-color:rgba(212,160,23,0.08)!important; }
+    .table-danger { background-color:rgba(192,57,43,0.08)!important; }
+    .truck-code { color:var(--navy); background:var(--cream); padding:2px 6px; border-radius:3px; font-size:0.88rem; font-family:monospace; }
+
+    .alert-wmsg { background:rgba(200,151,62,0.1); border:1px solid rgba(200,151,62,0.3); color:var(--navy); border-radius:8px; padding:14px 20px; font-size:0.95rem; }
+    #resultsSection { display:none; }
+    .spinner-border { width:1.4rem; height:1.4rem; }
+
+    @media(max-width:768px){
+      .site-header { height:80px; padding:0 12px; }
+      .header-brand img { height:36px; }
+      .header-brand .brand-name { font-size:1.1rem; }
+      .header-nav a { padding:6px 12px; font-size:0.78rem; }
+      .app-wrap { padding:12px 10px 30px; }
+    }
   </style>
 </head>
 <body>
 
-<div class="header-bar">
-  <h1>🚛 Жетом Транс — Командировъчни</h1>
-  <p>Автоматично генериране на заповеди и справки за командировки</p>
+<!-- HEADER BANNER -->
+<div class="site-header">
+  <div class="header-brand">
+    <img src="/static/img/logo.png" alt="Жетом Транс">
+    <div>
+      <div class="brand-name">Jetom Trans</div>
+      <div class="brand-sub">Калкулатор за командировъчни</div>
+    </div>
+  </div>
+  <div class="header-nav">
+    <a href="/">Начало</a>
+    <a href="/za-nas">За нас</a>
+    <a href="/kontakt">Контакти</a>
+  </div>
 </div>
 
-<div class="container-fluid px-4">
+<!-- APP -->
+<div class="app-wrap">
 
-  <!-- Upload form -->
-  <div class="card mb-4">
-    <div class="card-header">📂 Стъпка 1: Качете файловете</div>
-    <div class="card-body">
+  <!-- UPLOAD FORM -->
+  <div class="app-card">
+    <div class="app-card-hdr">📂 Качете файловете</div>
+    <div class="app-card-bdy">
       <form id="uploadForm" enctype="multipart/form-data">
         <div class="row g-3">
-          <div class="col-md-6">
-            <label class="form-label file-required">GPS Система 1 (.xlsx)</label>
-            <input type="file" class="form-control" name="gps1_file" id="gps1_file" accept=".xlsx" required>
-            <div class="form-text">Маршрути от Teltonika/Navixy</div>
-          </div>
-          <div class="col-md-6">
-            <label class="form-label">GPS Система 2 (.xlsx) <span class="text-muted">(по избор)</span></label>
-            <input type="file" class="form-control" name="gps2_file" id="gps2_file" accept=".xlsx">
-            <div class="form-text">Маршрути от втора GPS система</div>
-          </div>
-          <div class="col-md-6">
-            <label class="form-label">Камион → Шофьор (.xlsx) <span class="text-muted">(по избор)</span></label>
-            <input type="file" class="form-control" name="mapping_file" id="mapping_file" accept=".xlsx">
-            <div class="form-text">Файл с камион → шофьор (Камион_Шофьор.xlsx или КОЛИ_РЕМАРКЕТА.xlsx)</div>
-          </div>
-          <div class="col-md-6">
-            <label class="form-label">Бланка Заповед (.xls) <span class="text-muted">(по избор)</span></label>
-            <input type="file" class="form-control" name="banka_file" id="banka_file" accept=".xls">
-            <div class="form-text">Шаблон за заповед за командировка</div>
-          </div>
-          <div class="col-md-6">
-            <label class="form-label">Еталон — Командировки (.xls) <span class="text-muted">(по избор)</span></label>
-            <input type="file" class="form-control" name="etalon_file" id="etalon_file" accept=".xls,.xlsx">
-            <div class="form-text">Ръчна справка за сравнение — показва зелено/жълто/червено per шофьор</div>
-          </div>
+          <div class="col-md-6"><label class="form-label file-required">GPS Система 1 (.xlsx)</label><input type="file" class="form-control" name="gps1_file" accept=".xlsx" required><div class="form-text">Маршрути от Teltonika/Navixy</div></div>
+          <div class="col-md-6"><label class="form-label">GPS Система 2 (.xlsx) <span class="text-muted">(по избор)</span></label><input type="file" class="form-control" name="gps2_file" accept=".xlsx"><div class="form-text">Маршрути от втора GPS система</div></div>
+          <div class="col-md-6"><label class="form-label">Камион → Шофьор (.xlsx) <span class="text-muted">(по избор)</span></label><input type="file" class="form-control" name="mapping_file" accept=".xlsx"><div class="form-text">Камион_Шофьор.xlsx или КОЛИ_РЕМАРКЕТА.xlsx</div></div>
+          <div class="col-md-6"><label class="form-label">Бланка Заповед (.xls) <span class="text-muted">(по избор)</span></label><input type="file" class="form-control" name="banka_file" accept=".xls"><div class="form-text">Шаблон за заповед за командировка</div></div>
+          <div class="col-md-6"><label class="form-label">Еталон — Командировки (.xls) <span class="text-muted">(по избор)</span></label><input type="file" class="form-control" name="etalon_file" accept=".xls,.xlsx"><div class="form-text">Ръчна справка за сравнение</div></div>
         </div>
-
         <div class="row g-3 mt-1">
-          <div class="col-md-3">
-            <label class="form-label">Месец</label>
-            <select class="form-select" name="month" id="monthSel">
-              <option value="1" selected>Януари</option>
-              <option value="2">Февруари</option>
-              <option value="3">Март</option>
-              <option value="4">Април</option>
-              <option value="5">Май</option>
-              <option value="6">Юни</option>
-              <option value="7">Юли</option>
-              <option value="8">Август</option>
-              <option value="9">Септември</option>
-              <option value="10">Октомври</option>
-              <option value="11">Ноември</option>
-              <option value="12">Декември</option>
-            </select>
-          </div>
-          <div class="col-md-3">
-            <label class="form-label">Година</label>
-            <input type="number" class="form-control" name="year" id="yearInput" value="2026" min="2024" max="2030">
-          </div>
-          <div class="col-md-6 d-flex align-items-end">
-            <button type="submit" class="btn btn-primary w-100" id="processBtn">
-              ⚙️ Обработи файловете
-            </button>
-          </div>
+          <div class="col-md-3"><label class="form-label">Месец</label><select class="form-select" name="month" id="monthSel"><option value="1" selected>Януари</option><option value="2">Февруари</option><option value="3">Март</option><option value="4">Април</option><option value="5">Май</option><option value="6">Юни</option><option value="7">Юли</option><option value="8">Август</option><option value="9">Септември</option><option value="10">Октомври</option><option value="11">Ноември</option><option value="12">Декември</option></select></div>
+          <div class="col-md-3"><label class="form-label">Година</label><input type="number" class="form-control" name="year" id="yearInput" value="2026" min="2024" max="2030"></div>
+          <div class="col-md-6 d-flex align-items-end"><button type="submit" class="btn btn-gold w-100" id="processBtn">⚙️ Обработи файловете</button></div>
         </div>
       </form>
-
       <div id="errorAlert" class="alert alert-danger mt-3" style="display:none"></div>
-      <div id="loadingDiv" class="text-center mt-3" style="display:none">
-        <div class="spinner-border text-primary" role="status"></div>
-        <span class="ms-2 text-muted">Обработване...</span>
-      </div>
+      <div id="loadingDiv" class="text-center mt-3" style="display:none"><div class="spinner-border" style="color:var(--gold)"></div><span class="ms-2 text-muted">Обработване...</span></div>
     </div>
   </div>
 
-  <!-- Results section -->
+  <!-- RESULTS -->
   <div id="resultsSection">
-
-    <!-- Stats -->
-    <div class="row g-3 mb-4">
-      <div class="col-6 col-md-3">
-        <div class="stat-box">
-          <div class="val" id="statRecords">—</div>
-          <div class="lbl">GPS записа</div>
-        </div>
-      </div>
-      <div class="col-6 col-md-3">
-        <div class="stat-box">
-          <div class="val" id="statDrivers">—</div>
-          <div class="lbl">Шофьори</div>
-        </div>
-      </div>
-      <div class="col-6 col-md-3">
-        <div class="stat-box">
-          <div class="val" id="statTrips">—</div>
-          <div class="lbl">Командировки</div>
-        </div>
-      </div>
-      <div class="col-6 col-md-3">
-        <div class="stat-box">
-          <div class="val" id="statEur">—</div>
-          <div class="lbl">Общо EUR</div>
-        </div>
-      </div>
+    <div class="row g-3">
+      <div class="col-6 col-md-3"><div class="stat-box"><div class="val" id="statRecords">—</div><div class="lbl">GPS записа</div></div></div>
+      <div class="col-6 col-md-3"><div class="stat-box"><div class="val" id="statDrivers">—</div><div class="lbl">Шофьори</div></div></div>
+      <div class="col-6 col-md-3"><div class="stat-box"><div class="val" id="statTrips">—</div><div class="lbl">Командировки</div></div></div>
+      <div class="col-6 col-md-3"><div class="stat-box"><div class="val" id="statEur">—</div><div class="lbl">Общо EUR</div></div></div>
     </div>
-
-    <!-- Confidence stats -->
-    <div class="row g-3 mb-4">
-      <div class="col-4">
-        <div class="stat-box" style="border-left: 4px solid #198754;">
-          <div class="val" style="color:#198754" id="statGreen">—</div>
-          <div class="lbl">🟢 Точно</div>
-        </div>
-      </div>
-      <div class="col-4">
-        <div class="stat-box" style="border-left: 4px solid #ffc107;">
-          <div class="val" style="color:#b58900" id="statYellow">—</div>
-          <div class="lbl">🟡 ±1 ден</div>
-        </div>
-      </div>
-      <div class="col-4">
-        <div class="stat-box" style="border-left: 4px solid #dc3545;">
-          <div class="val" style="color:#dc3545" id="statRed">—</div>
-          <div class="lbl">🔴 Проверете</div>
-        </div>
-      </div>
+    <div class="row g-3 mt-2">
+      <div class="col-4"><div class="conf-box cg"><div class="val" id="statGreen">—</div><div class="lbl">🟢 Точно</div></div></div>
+      <div class="col-4"><div class="conf-box cy"><div class="val" id="statYellow">—</div><div class="lbl">🟡 ±1 ден</div></div></div>
+      <div class="col-4"><div class="conf-box cr"><div class="val" id="statRed">—</div><div class="lbl">🔴 Проверете</div></div></div>
     </div>
+    <div id="unmappedAlert" class="alert-wmsg mt-3" style="display:none"><strong>⚠️ Немаркирани камиони:</strong><div class="mt-1" style="font-size:0.82rem" id="unmappedList"></div></div>
 
-    <!-- Unmapped warning -->
-    <div id="unmappedAlert" class="alert alert-warning mb-3">
-      <strong>⚠️ Немаркирани камиони:</strong>
-      <div class="unmapped-list mt-1" id="unmappedList"></div>
-    </div>
-
-    <!-- Download buttons -->
-    <div class="card mb-4">
-      <div class="card-header">📥 Стъпка 2: Изтеглете документите</div>
-      <div class="card-body">
+    <!-- DOWNLOADS -->
+    <div class="app-card mt-3">
+      <div class="app-card-hdr">📥 Изтеглете документите</div>
+      <div class="app-card-bdy">
         <div class="row g-3">
-          <div class="col-md-4">
-            <button class="btn btn-success w-100 py-3" id="btnDownloadExcel">
-              📊 Изтегли Справка Excel
-            </button>
-            <div class="form-text text-center mt-1">СПРАВКА КОМАНДИРОВКИ (.xls)</div>
-          </div>
-          <div class="col-md-4">
-            <button class="btn btn-primary w-100 py-3" id="btnDownloadZip">
-              📦 Изтегли ZIP с всички заповеди
-            </button>
-            <div class="form-text text-center mt-1">Справка + заповеди (+ протокол ако има еталон)</div>
-          </div>
-          <div class="col-md-4">
-            <button class="btn btn-warning w-100 py-3" id="btnDownloadProtokol" style="display:none">
-              ⚠️ Изтегли Протокол за несъответствия
-            </button>
-            <div class="form-text text-center mt-1" id="protokolHint" style="display:none">Сравнение GPS vs Еталон (.xls)</div>
-          </div>
+          <div class="col-md-4"><button class="btn btn-navy w-100 py-3" id="btnDownloadExcel">📊 Справка</button><div class="form-text text-center mt-1">spravka_MM_YYYY.xls</div></div>
+          <div class="col-md-4"><button class="btn btn-gold w-100 py-3" id="btnDownloadZip">📦 ZIP заповеди</button><div class="form-text text-center mt-1">komandirovki_MM_YYYY.zip</div></div>
+          <div class="col-md-4"><button class="btn btn-warn w-100 py-3" id="btnDownloadProtokol" style="display:none">⚠️ Протокол</button><div class="form-text text-center mt-1" id="protokolHint" style="display:none">protokol_MM_YYYY.xls</div></div>
         </div>
-        <div id="downloadLoading" class="text-center mt-3" style="display:none">
-          <div class="spinner-border text-primary" role="status"></div>
-          <span class="ms-2 text-muted">Генерира се файл...</span>
-        </div>
+        <div id="downloadLoading" class="text-center mt-3" style="display:none"><div class="spinner-border" style="color:var(--gold)"></div><span class="ms-2 text-muted">Генерира се...</span></div>
         <div id="downloadError" class="alert alert-danger mt-3" style="display:none"></div>
       </div>
     </div>
 
-    <!-- Comparison table (shown only when etalon is uploaded) -->
+    <!-- COMPARISON -->
     <div id="comparisonSection" style="display:none">
-      <div class="card mb-4">
-        <div class="card-header d-flex justify-content-between align-items-center" style="background:#8B4513">
-          <span>📋 Сравнение GPS vs Еталон</span>
-          <span class="badge bg-light text-dark" id="comparisonCount"></span>
-        </div>
-        <div class="card-body p-0">
-          <div class="table-responsive">
-            <table class="table table-hover table-sm mb-0" id="comparisonTable">
-              <thead>
-                <tr>
-                  <th>Шофьор</th>
-                  <th class="text-end">GPS EUR</th>
-                  <th class="text-end">Еталон EUR</th>
-                  <th class="text-end">Разлика EUR</th>
-                  <th class="text-center">GPS дни</th>
-                  <th class="text-center">Еталон дни</th>
-                  <th class="text-center">⚡</th>
-                  <th>Бележки</th>
-                </tr>
-              </thead>
-              <tbody id="comparisonBody"></tbody>
-            </table>
-          </div>
-        </div>
+      <div class="app-card mt-3">
+        <div class="app-card-hdr" style="background:#5c3d1a">📋 GPS vs Еталон <span class="badge bg-light text-dark ms-auto" id="comparisonCount"></span></div>
+        <div class="p-0"><div class="table-responsive"><table class="table table-hover table-sm mb-0"><thead><tr><th>Шофьор</th><th class="text-end">GPS EUR</th><th class="text-end">Еталон</th><th class="text-end">Разлика</th><th class="text-center">GPS дни</th><th class="text-center">Етал.</th><th class="text-center">⚡</th><th>Бележки</th></tr></thead><tbody id="comparisonBody"></tbody></table></div></div>
       </div>
     </div>
 
-    <!-- Table -->
-    <div class="card mb-4">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <span>📋 Командировки по шофьор</span>
-        <span class="badge bg-light text-dark" id="tableCount"></span>
-      </div>
-      <div class="card-body p-0">
-        <div class="table-responsive">
-          <table class="table table-hover table-striped mb-0" id="tripsTable">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Шофьор</th>
-                <th>Камион</th>
-                <th>От</th>
-                <th>До</th>
-                <th>Дни</th>
-                <th>Страна</th>
-                <th>EUR/ден</th>
-                <th class="text-end">EUR</th>
-                <th class="text-end">BGN</th>
-                <th>⚡</th>
-              </tr>
-            </thead>
-            <tbody id="tripsBody"></tbody>
-          </table>
-        </div>
-      </div>
+    <!-- TRIPS TABLE -->
+    <div class="app-card mt-3">
+      <div class="app-card-hdr">📋 Командировки по шофьор <span class="badge bg-light text-dark ms-auto" id="tableCount"></span></div>
+      <div class="p-0"><div class="table-responsive"><table class="table table-hover table-striped mb-0"><thead><tr><th>#</th><th>Шофьор</th><th>Камион</th><th>От</th><th>До</th><th>Дни</th><th>Страна</th><th>EUR/ден</th><th class="text-end">EUR</th><th class="text-end">BGN</th><th>⚡</th></tr></thead><tbody id="tripsBody"></tbody></table></div></div>
     </div>
-
-  </div><!-- /resultsSection -->
+  </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-let currentMonth = 1;
-let currentYear = 2026;
-
-document.getElementById('uploadForm').addEventListener('submit', async function(e) {
+let currentMonth=1,currentYear=2026;
+document.getElementById('uploadForm').addEventListener('submit',async function(e){
   e.preventDefault();
-
-  const errorDiv = document.getElementById('errorAlert');
-  const loadingDiv = document.getElementById('loadingDiv');
-  const processBtn = document.getElementById('processBtn');
-
-  errorDiv.style.display = 'none';
-  loadingDiv.style.display = 'block';
-  processBtn.disabled = true;
-  document.getElementById('resultsSection').style.display = 'none';
-
-  currentMonth = parseInt(document.getElementById('monthSel').value);
-  currentYear = parseInt(document.getElementById('yearInput').value);
-
-  try {
-    const formData = new FormData(this);
-    const resp = await fetch('/process', { method: 'POST', body: formData });
-    const data = await resp.json();
-
-    if (!resp.ok || data.error) {
-      errorDiv.textContent = data.error || 'Неизвестна грешка';
-      errorDiv.style.display = 'block';
-      return;
-    }
-
-    // Stats
-    document.getElementById('statRecords').textContent = data.stats.total_records.toLocaleString();
-    document.getElementById('statDrivers').textContent = data.stats.total_drivers;
-    document.getElementById('statTrips').textContent = data.stats.total_trips;
-    document.getElementById('statEur').textContent = data.stats.total_eur.toLocaleString() + ' €';
-
-    // Confidence stats
-    document.getElementById('statGreen').textContent = data.stats.confidence_green || 0;
-    document.getElementById('statYellow').textContent = data.stats.confidence_yellow || 0;
-    document.getElementById('statRed').textContent = data.stats.confidence_red || 0;
-
-    // Unmapped
-    const unmappedAlert = document.getElementById('unmappedAlert');
-    if (data.stats.unmapped_trucks && data.stats.unmapped_trucks.length > 0) {
-      document.getElementById('unmappedList').textContent = data.stats.unmapped_trucks.join(', ');
-      unmappedAlert.style.display = 'block';
-    } else {
-      unmappedAlert.style.display = 'none';
-    }
-
-    // Table
-    const tbody = document.getElementById('tripsBody');
-    tbody.innerHTML = '';
-    let prevDriver = '';
-    data.data.forEach(row => {
-      const tr = document.createElement('tr');
-      if (row.full_name !== prevDriver) {
-        tr.style.borderTop = '2px solid #c5d3e8';
-        prevDriver = row.full_name;
-      }
-      tr.innerHTML = `
-        <td class="text-muted">${row.order_num}</td>
-        <td><strong>${row.full_name}</strong></td>
-        <td><code>${row.truck}</code></td>
-        <td>${row.start_date}</td>
-        <td>${row.end_date}</td>
-        <td><span class="badge bg-secondary">${row.days}</span></td>
-        <td>${row.country}</td>
-        <td>${row.eur_rate}</td>
-        <td class="text-end fw-bold">${row.eur_sum}</td>
-        <td class="text-end">${row.bgn_sum.toFixed(2)}</td>
-        <td>${row.confidence === 'green' ? '🟢' : row.confidence === 'red' ? '🔴' : '🟡'}</td>
-      `;
-      tbody.appendChild(tr);
-    });
-    document.getElementById('tableCount').textContent = data.data.length + ' реда';
-
-    // Comparison section (if etalon was uploaded)
-    const compSection = document.getElementById('comparisonSection');
-    const protokolBtn = document.getElementById('btnDownloadProtokol');
-    const protokolHint = document.getElementById('protokolHint');
-    
-    // Show etalon info for debugging
-    if (data.etalon_info) {
-      console.log('[ETALON]', data.etalon_info);
-    }
-    console.log('[DEBUG] has_etalon:', data.has_etalon, 'comparison:', data.comparison ? data.comparison.length + ' entries' : 'null');
-    
-    if (data.has_etalon && data.comparison) {
-      compSection.style.display = 'block';
-      protokolBtn.style.display = 'block';
-      protokolHint.style.display = 'block';
-      
-      const compBody = document.getElementById('comparisonBody');
-      compBody.innerHTML = '';
-      
-      // Sort: red first, then yellow, then green
-      const order = {'red': 0, 'yellow': 1, 'green': 2};
-      data.comparison.sort((a, b) => (order[a.confidence] || 3) - (order[b.confidence] || 3) || a.full_name.localeCompare(b.full_name));
-      
-      data.comparison.forEach(row => {
-        const tr = document.createElement('tr');
-        const bgClass = row.confidence === 'red' ? 'table-danger' : row.confidence === 'yellow' ? 'table-warning' : 'table-success';
-        tr.className = bgClass;
-        tr.innerHTML = `
-          <td><strong>${row.full_name}</strong></td>
-          <td class="text-end">${row.gps_eur}</td>
-          <td class="text-end">${row.etalon_eur !== null ? row.etalon_eur : '—'}</td>
-          <td class="text-end fw-bold">${row.diff_eur !== null ? (row.diff_eur > 0 ? '+' : '') + row.diff_eur : '—'}</td>
-          <td class="text-center">${row.gps_days}</td>
-          <td class="text-center">${row.etalon_days !== null ? row.etalon_days : '—'}</td>
-          <td class="text-center">${row.confidence === 'green' ? '🟢' : row.confidence === 'red' ? '🔴' : '🟡'}</td>
-          <td><small>${row.notes}</small></td>
-        `;
-        compBody.appendChild(tr);
-      });
-      document.getElementById('comparisonCount').textContent = data.comparison.length + ' шофьори';
-    } else {
-      compSection.style.display = 'none';
-      protokolBtn.style.display = 'none';
-      protokolHint.style.display = 'none';
-    }
-
-    document.getElementById('resultsSection').style.display = 'block';
-    document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
-
-  } catch (err) {
-    errorDiv.textContent = 'Мрежова грешка: ' + err.message;
-    errorDiv.style.display = 'block';
-  } finally {
-    loadingDiv.style.display = 'none';
-    processBtn.disabled = false;
-  }
+  const err=document.getElementById('errorAlert'),ld=document.getElementById('loadingDiv'),btn=document.getElementById('processBtn');
+  err.style.display='none';ld.style.display='block';btn.disabled=true;
+  document.getElementById('resultsSection').style.display='none';
+  currentMonth=parseInt(document.getElementById('monthSel').value);
+  currentYear=parseInt(document.getElementById('yearInput').value);
+  try{
+    const fd=new FormData(this),r=await fetch('/process',{method:'POST',body:fd}),d=await r.json();
+    if(!r.ok||d.error){err.textContent=d.error||'Грешка';err.style.display='block';return;}
+    document.getElementById('statRecords').textContent=d.stats.total_records.toLocaleString();
+    document.getElementById('statDrivers').textContent=d.stats.total_drivers;
+    document.getElementById('statTrips').textContent=d.stats.total_trips;
+    document.getElementById('statEur').textContent=d.stats.total_eur.toLocaleString()+' €';
+    document.getElementById('statGreen').textContent=d.stats.confidence_green||0;
+    document.getElementById('statYellow').textContent=d.stats.confidence_yellow||0;
+    document.getElementById('statRed').textContent=d.stats.confidence_red||0;
+    const ua=document.getElementById('unmappedAlert');
+    if(d.stats.unmapped_trucks&&d.stats.unmapped_trucks.length>0){document.getElementById('unmappedList').textContent=d.stats.unmapped_trucks.join(', ');ua.style.display='block';}else ua.style.display='none';
+    const tb=document.getElementById('tripsBody');tb.innerHTML='';let pv='';
+    d.data.forEach(row=>{const tr=document.createElement('tr');if(row.full_name!==pv){tr.style.borderTop='2px solid var(--cream-dark)';pv=row.full_name;}tr.innerHTML=`<td class="text-muted">${row.order_num}</td><td><strong>${row.full_name}</strong></td><td><code class="truck-code">${row.truck}</code></td><td>${row.start_date}</td><td>${row.end_date}</td><td><span class="badge" style="background:var(--navy)">${row.days}</span></td><td>${row.country}</td><td>${row.eur_rate}</td><td class="text-end fw-bold">${row.eur_sum}</td><td class="text-end">${row.bgn_sum.toFixed(2)}</td><td>${row.confidence==='green'?'🟢':row.confidence==='red'?'🔴':'🟡'}</td>`;tb.appendChild(tr);});
+    document.getElementById('tableCount').textContent=d.data.length+' реда';
+    const cs=document.getElementById('comparisonSection'),pb=document.getElementById('btnDownloadProtokol'),ph=document.getElementById('protokolHint');
+    if(d.has_etalon&&d.comparison){cs.style.display='block';pb.style.display='block';ph.style.display='block';
+      const cb=document.getElementById('comparisonBody');cb.innerHTML='';const ord={'red':0,'yellow':1,'green':2};
+      d.comparison.sort((a,b)=>(ord[a.confidence]||3)-(ord[b.confidence]||3)||a.full_name.localeCompare(b.full_name));
+      d.comparison.forEach(row=>{const tr=document.createElement('tr');tr.className=row.confidence==='red'?'table-danger':row.confidence==='yellow'?'table-warning':'table-success';tr.innerHTML=`<td><strong>${row.full_name}</strong></td><td class="text-end">${row.gps_eur}</td><td class="text-end">${row.etalon_eur!==null?row.etalon_eur:'—'}</td><td class="text-end fw-bold">${row.diff_eur!==null?(row.diff_eur>0?'+':'')+row.diff_eur:'—'}</td><td class="text-center">${row.gps_days}</td><td class="text-center">${row.etalon_days!==null?row.etalon_days:'—'}</td><td class="text-center">${row.confidence==='green'?'🟢':row.confidence==='red'?'🔴':'🟡'}</td><td><small>${row.notes}</small></td>`;cb.appendChild(tr);});
+      document.getElementById('comparisonCount').textContent=d.comparison.length+' шофьори';
+    }else{cs.style.display='none';pb.style.display='none';ph.style.display='none';}
+    document.getElementById('resultsSection').style.display='block';
+    document.getElementById('resultsSection').scrollIntoView({behavior:'smooth'});
+  }catch(e){err.textContent='Мрежова грешка: '+e.message;err.style.display='block';}
+  finally{ld.style.display='none';btn.disabled=false;}
 });
-
-async function downloadFile(url, params, defaultFilename) {
-  const downloadLoading = document.getElementById('downloadLoading');
-  const downloadError = document.getElementById('downloadError');
-  downloadLoading.style.display = 'block';
-  downloadError.style.display = 'none';
-
-  try {
-    const resp = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(params)
-    });
-
-    if (!resp.ok) {
-      const data = await resp.json();
-      throw new Error(data.error || 'Грешка при генериране');
-    }
-
-    const blob = await resp.blob();
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    // Get filename from Content-Disposition header if available
-    const cd = resp.headers.get('Content-Disposition');
-    let filename = defaultFilename;
-    if (cd) {
-      const m = cd.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
-      if (m) filename = m[1].replace(/['"]/g, '');
-    }
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(a.href);
-
-  } catch (err) {
-    downloadError.textContent = 'Грешка: ' + err.message;
-    downloadError.style.display = 'block';
-  } finally {
-    downloadLoading.style.display = 'none';
-  }
-}
-
-document.getElementById('btnDownloadExcel').addEventListener('click', function() {
-  downloadFile('/export-excel', { month: currentMonth, year: currentYear },
-    `Справка_Командировки_${currentYear}.xls`);
-});
-
-document.getElementById('btnDownloadZip').addEventListener('click', function() {
-  downloadFile('/download-zip', { month: currentMonth, year: currentYear },
-    `Командировки_${currentYear}.zip`);
-});
-
-document.getElementById('btnDownloadProtokol').addEventListener('click', function() {
-  downloadFile('/download-protokol', { month: currentMonth, year: currentYear },
-    `Протокол_Несъответствия_${currentYear}.xls`);
-});
+async function dl(url,p,fn){const ld=document.getElementById('downloadLoading'),de=document.getElementById('downloadError');ld.style.display='block';de.style.display='none';try{const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)});if(!r.ok){const d=await r.json();throw new Error(d.error||'Грешка');}const b=await r.blob(),a=document.createElement('a');a.href=URL.createObjectURL(b);const cd=r.headers.get('Content-Disposition');let f=fn;if(cd){const m=cd.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);if(m)f=m[1].replace(/['"]/g,'');}a.download=f;document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(a.href);}catch(e){de.textContent=e.message;de.style.display='block';}finally{ld.style.display='none';}}
+document.getElementById('btnDownloadExcel').addEventListener('click',()=>dl('/export-excel',{month:currentMonth,year:currentYear},`spravka_${String(currentMonth).padStart(2,'0')}_${currentYear}.xls`));
+document.getElementById('btnDownloadZip').addEventListener('click',()=>dl('/download-zip',{month:currentMonth,year:currentYear},`komandirovki_${String(currentMonth).padStart(2,'0')}_${currentYear}.zip`));
+document.getElementById('btnDownloadProtokol').addEventListener('click',()=>dl('/download-protokol',{month:currentMonth,year:currentYear},`protokol_${String(currentMonth).padStart(2,'0')}_${currentYear}.xls`));
 </script>
 </body>
 </html>

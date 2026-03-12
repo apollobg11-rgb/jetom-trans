@@ -24,7 +24,16 @@ app = Flask(__name__)
 # КОНСТАНТИ
 # ============================================================
 EUR_TO_BGN = 1.95583
-WORKING_DAYS_JAN_2026 = 20
+def _working_days_in_month(month, year):
+    """Изчислява работните дни в даден месец (без събота/неделя и официални празници)."""
+    from calendar import monthrange
+    _, last_day = monthrange(year, month)
+    count = 0
+    for day in range(1, last_day + 1):
+        d = date(year, month, day)
+        if d.weekday() < 5 and d not in BG_HOLIDAYS:  # понеделник-петък, не празник
+            count += 1
+    return count
 BGN_PER_DAY_BG = 11
 
 EUR_RATES = {
@@ -139,19 +148,41 @@ def detect_country(address):
     if not address:
         return None
     addr = str(address)
-    if 'България' in addr or 'Bulgaria' in addr:
+    addr_lower = addr.lower()
+    if 'България' in addr or 'Bulgaria' in addr or 'българия' in addr_lower:
         return 'България'
-    if any(m in addr for m in ['Ελλάδα', 'Ελληνικ', 'Δήμος', 'Περιφερ', 'Greece', 'Гърция']):
+    if any(m in addr for m in [
+        'Ελλάδα', 'Ελληνικ', 'Δήμος', 'Περιφερ', 'Αλεξανδρ', 'Θεσσαλονίκ',
+        'Αθήνα', 'Πειραι', 'Κομοτηνή', 'Ξάνθη', 'Καβάλα', 'Δράμα', 'Σέρρες',
+        'Ορεστιάδα', 'Διδυμότειχο', 'Εβρος', 'Ροδόπη',
+        'Greece', 'Гърция', 'Hellas', 'Ελλάς',
+    ]):
         return 'Гърция'
-    if any(m in addr for m in ['România', 'Romania', 'Румъния']):
+    if any(m in addr for m in [
+        'România', 'Romania', 'Румъния', 'Românã',
+        'București', 'Bucuresti', 'Constanța', 'Giurgiu', 'Ruse',
+        'Craiova', 'Timișoara', 'Cluj', 'Brașov', 'Sibiu',
+    ]):
         return 'Румъния'
-    if any(m in addr for m in ['Türkiye', 'Turkey', 'Турция']):
+    if any(m in addr for m in [
+        'Türkiye', 'Turkey', 'Турция', 'Turkiye',
+        'İstanbul', 'Istanbul', 'Edirne', 'Одрин',
+        'Kapıkule', 'Kapikule',
+    ]):
         return 'Турция'
-    if any(m in addr for m in ['Srbija', 'Serbia', 'Сърбия', 'Сербия']):
+    if any(m in addr for m in [
+        'Srbija', 'Serbia', 'Сърбия', 'Сербия',
+        'Beograd', 'Београд', 'Niš', 'Ниш', 'Novi Sad',
+    ]):
         return 'Сърбия'
-    if any(m in addr for m in ['Македония', 'Macedonia', 'Северна Македония', 'North Macedonia']):
+    if any(m in addr for m in [
+        'Македония', 'Macedonia', 'Северна Македония', 'North Macedonia',
+        'Скопие', 'Skopje', 'Makedonija',
+    ]):
         return 'Македония'
-    if any(m in addr for m in ['Албания', 'Albania', 'Shqipëri']):
+    if any(m in addr for m in [
+        'Албания', 'Albania', 'Shqipëri', 'Shqiperi', 'Tirana', 'Tiranë',
+    ]):
         return 'Албания'
     return 'Чужбина'
 
@@ -253,6 +284,24 @@ def parse_gps1(filepath):
     return records
 
 
+def _is_gkpp_greece(road_str):
+    """Проверява дали пътят минава през ГКПП към Гърция."""
+    r = road_str.upper()
+    return 'ПЕТКО ВОЙВОДА' in r or 'ПЕТКО' in r and 'ГКПП' in r
+
+
+def _is_gkpp_serbia(road_str):
+    """Проверява дали пътят минава през ГКПП към Сърбия."""
+    r = road_str.upper()
+    return 'КАЛОТИНА' in r and 'ГКПП' in r
+
+
+def _is_gkpp_turkey(road_str):
+    """Проверява дали пътят минава през ГКПП към Турция."""
+    r = road_str.upper()
+    return 'АНДРЕЕВО' in r and ('ГКПП' in r or 'КАПИТАН' in r)
+
+
 def parse_gps2(filepath):
     """
     Парсва GPS Система 2 (.xlsx) — 33 sheets, sheet name = рег. номер.
@@ -268,6 +317,8 @@ def parse_gps2(filepath):
             end_str = row[12]    # M: Крайна дата
             addr_from = row[2]   # C: Начален адрес
             addr_to = row[10]    # K: Краен адрес
+            road_from = row[3]   # D: Начален Път
+            road_to = row[11]    # L: Краен Път
             if not start_str:
                 continue
             try:
@@ -279,14 +330,30 @@ def parse_gps2(filepath):
                     end_time = datetime.strptime(str(end_str), '%d/%m/%Y %H:%M')
                 except Exception:
                     continue
+
+            country_from = detect_country(addr_from)
+            country_to = detect_country(addr_to)
+
+            # ГКПП detection: ако пътят минава през ГКПП,
+            # третираме като пресичане на граница
+            road_from_str = str(road_from) if road_from else ''
+            road_to_str = str(road_to) if road_to else ''
+
+            # ГКПП Капитан Петко Войвода → граница с Гърция
+            # (потвърдено от клиента — склад близо до границата)
+            if _is_gkpp_greece(road_from_str) and country_from == 'България':
+                country_from = 'Гърция'
+            if _is_gkpp_greece(road_to_str) and country_to == 'България':
+                country_to = 'Гърция'
+
             records.append({
                 'reg': reg,
                 'start': start_time,
                 'end': end_time,
                 'addr_from': str(addr_from) if addr_from else '',
                 'addr_to': str(addr_to) if addr_to else '',
-                'country_from': detect_country(addr_from),
-                'country_to': detect_country(addr_to),
+                'country_from': country_from,
+                'country_to': country_to,
                 'source': 'GPS2'
             })
     return records
@@ -367,6 +434,19 @@ def parse_etalon(filepath):
             pending_total_eur = None
             # If this row also has trip data (date in col2), don't skip it
             name_row_has_trip = isinstance(col2, float) and col2 > 25000
+        
+        # New driver WITHOUT row number: col0 empty, col1 has name, col2 has date,
+        # and we're not inside a driver block (current_driver is None after "За получаване")
+        if not current_driver and (not col0 or col0 == '' or col0 == 0) \
+                and col1 and col1 != 'За получаване' \
+                and not col1.startswith('ОБОБЩЕНИЕ') and not col1.startswith('ИЗВЕСТНИ') \
+                and (isinstance(col2, (float, str)) and col2):
+            current_driver = col1.upper().strip()
+            while '  ' in current_driver:
+                current_driver = current_driver.replace('  ', ' ')
+            current_trips = []
+            pending_total_days = None
+            pending_total_eur = None
         
         # Check for name continuation: col0 empty, col1 has text that looks like a surname
         # (not "За получаване", and current_driver exists with a single-word name)
@@ -781,8 +861,9 @@ def _state_machine_foreign_days(recs):
       OUTSIDE_BG → OUTSIDE_BG: когато и двата адреса са чужди (смяна на държава)
       OUTSIDE_BG → IN_BG: когато c_to=BG
 
-    Връща dict: {date → country_code} за всички дни в чужбина.
-    При две държави в един ден — по-високата ставка печели.
+    Връща:
+      foreign_days: {date → country_code} за всички дни в чужбина
+      trip_boundaries: list of (start_date, end_date) — всяко излизане/връщане е отделен trip
     """
     recs_sorted = sorted(recs, key=lambda x: x['start'])
 
@@ -790,6 +871,7 @@ def _state_machine_foreign_days(recs):
     trip_start = None
     current_country = None
     foreign_days = {}  # date → country code
+    trip_boundaries = []  # [(start_date, end_date), ...]
 
     for r in recs_sorted:
         cf = r.get('country_from')
@@ -815,6 +897,8 @@ def _state_machine_foreign_days(recs):
                     d += timedelta(days=1)
                 # Маркирай и деня на връщане с държавата на тръгване
                 _mark_day(foreign_days, ret_date, cf)
+                # Запиши trip boundary
+                trip_boundaries.append((trip_start, ret_date))
                 state = 'IN_BG'
                 trip_start = None
                 current_country = None
@@ -837,13 +921,16 @@ def _state_machine_foreign_days(recs):
 
             elif cf == 'България' and ct and ct != 'България':
                 # Ново излизане докато сме OUTSIDE? (рядко, но възможно при GPS gaps)
-                # Запълни дни до днес, после нов trip
+                # Приключи текущия trip
                 today = r['start'].date()
                 if trip_start:
+                    prev_date = today - timedelta(days=1)
                     d = trip_start
-                    while d < today:
+                    while d <= prev_date:
                         _mark_day(foreign_days, d, current_country)
                         d += timedelta(days=1)
+                    trip_boundaries.append((trip_start, prev_date))
+                # Започни нов trip
                 trip_start = today
                 current_country = ct
                 _mark_day(foreign_days, today, ct)
@@ -855,8 +942,9 @@ def _state_machine_foreign_days(recs):
         while d <= last_date:
             _mark_day(foreign_days, d, current_country)
             d += timedelta(days=1)
+        trip_boundaries.append((trip_start, last_date))
 
-    return foreign_days
+    return foreign_days, trip_boundaries
 
 
 def _mark_day(foreign_days, d, country):
@@ -902,11 +990,19 @@ def _calc_eur_with_holidays(foreign_days):
     return total
 
 
-def _days_to_trips(foreign_days, reg, driver_info):
-    """Конвертира foreign_days dict в списък от trip dicts."""
+def _days_to_trips(foreign_days, reg, driver_info, trip_boundaries=None):
+    """Конвертира foreign_days dict в списък от trip dicts.
+    Ако trip_boundaries е подаден, разделя по границите (всяко излизане/връщане = отделен trip).
+    """
     sorted_all = sorted(foreign_days.keys())
     if not sorted_all:
         return []
+
+    # Build boundary set — дни, в които започва нов trip
+    boundary_starts = set()
+    if trip_boundaries:
+        for start, end in trip_boundaries:
+            boundary_starts.add(start)
 
     trips = []
     cs = sorted_all[0]
@@ -918,9 +1014,11 @@ def _days_to_trips(foreign_days, reg, driver_info):
         c = foreign_days[d]
         gap = (d - prev).days
 
-        if gap > 1 or (c != cc):
+        # Split при: gap > 1, смяна на държава, или нова trip boundary
+        should_split = gap > 1 or (c != cc) or (d in boundary_starts)
+
+        if should_split:
             days_count = (prev - cs).days + 1
-            # Изчисли EUR с празници
             trip_eur = 0
             td = cs
             while td <= prev:
@@ -965,10 +1063,10 @@ def _days_to_trips(foreign_days, reg, driver_info):
 
 def _run_scenario(recs, day_index, reg, driver_info, pre=False, sunday_filter=False):
     """Пуска един сценарий: state machine + опционално pre-dep."""
-    foreign_days = _state_machine_foreign_days(recs)
+    foreign_days, trip_boundaries = _state_machine_foreign_days(recs)
     if pre:
         _add_pre_departure(foreign_days, day_index, sunday_filter=sunday_filter)
-    return _days_to_trips(foreign_days, reg, driver_info)
+    return _days_to_trips(foreign_days, reg, driver_info, trip_boundaries=trip_boundaries)
 
 
 def build_trips(all_records, mapping, etalon_eur=None):
@@ -1107,7 +1205,7 @@ def generate_spravka(by_driver, month=1, year=2026):
         total_days = sum(t['days'] for t in trips)
         total_eur = sum(t.get('eur_total', t['days'] * t['eur_rate']) for t in trips)
         grand_total_eur += total_eur
-        bg_days = WORKING_DAYS_JAN_2026 - total_days
+        bg_days = _working_days_in_month(month, year) - total_days
 
         first = True
         for trip in trips:
@@ -1234,12 +1332,12 @@ def generate_zip(by_driver, banka_path, month=1, year=2026, comparison=None):
     with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
         # Справка
         spravka = generate_spravka(by_driver, month, year)
-        zf.writestr(f'СПРАВКА_Командировки_{month_name}_{year}.xls', spravka.read())
+        zf.writestr(f'spravka_{month:02d}_{year}.xls', spravka.read())
 
         # Протокол (ако има comparison)
         if comparison:
             protokol = generate_protokol(comparison, month, year)
-            zf.writestr(f'ПРОТОКОЛ_Несъответствия_{month_name}_{year}.xls', protokol.read())
+            zf.writestr(f'protokol_{month:02d}_{year}.xls', protokol.read())
 
         # Заповеди по шофьори (азбучен ред)
         for full_name in sorted(by_driver.keys()):
@@ -1477,7 +1575,7 @@ def export_excel():
             spravka_buf,
             mimetype='application/vnd.ms-excel',
             as_attachment=True,
-            download_name=f'Справка_Командировки_{month_name}_{year}.xls'
+            download_name=f'spravka_{month:02d}_{year}.xls'
         )
     except Exception as e:
         traceback.print_exc()
@@ -1506,7 +1604,7 @@ def download_zip():
             zip_buf,
             mimetype='application/zip',
             as_attachment=True,
-            download_name=f'Командировки_{month_name}_{year}.zip'
+            download_name=f'komandirovki_{month:02d}_{year}.zip'
         )
     except Exception as e:
         traceback.print_exc()
@@ -1532,7 +1630,7 @@ def download_protokol():
             protokol_buf,
             mimetype='application/vnd.ms-excel',
             as_attachment=True,
-            download_name=f'Протокол_Несъответствия_{month_name}_{year}.xls'
+            download_name=f'protokol_{month:02d}_{year}.xls'
         )
     except Exception as e:
         traceback.print_exc()
