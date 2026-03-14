@@ -5,7 +5,7 @@
 Production v1.0
 """
 
-from flask import Flask, render_template, request, jsonify, send_file
+from flask import Flask, render_template, request, jsonify, send_file, redirect, session, url_for
 from datetime import datetime, timedelta, date
 import openpyxl
 import xlrd
@@ -16,9 +16,17 @@ import traceback
 import io
 import tempfile
 import os
+os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 import zipfile
-
+from google_drive import (
+    ensure_month_structure,
+    get_google_flow,
+    save_credentials,
+    upload_files_batch,
+)
 app = Flask(__name__)
+app.secret_key = "jetom_local_oauth_secret"
+GDRIVE_ROOT_FOLDER_ID = "1przIDNmtqlORmXO_ItV0c65bd6ia8eRY"
 
 # ============================================================
 # КОНСТАНТИ
@@ -1360,6 +1368,25 @@ def generate_zip(by_driver, banka_path, month=1, year=2026, comparison=None):
 # FLASK ROUTES
 # ============================================================
 
+@app.route('/google-login')
+def google_login():
+    flow = get_google_flow()
+    authorization_url, state = flow.authorization_url(
+        access_type='offline',
+        include_granted_scopes='true',
+        prompt='consent'
+    )
+    session['oauth_state'] = state
+    return redirect(authorization_url)
+
+
+@app.route('/oauth2callback')
+def oauth2callback():
+    state = session.get('oauth_state')
+    flow = get_google_flow(state=state)
+    flow.fetch_token(authorization_response=request.url)
+    save_credentials(flow.credentials)
+    return redirect(url_for('index'))
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -1405,13 +1432,41 @@ def process_files():
             mapping_file.save(mapping_path)
             mapping = parse_mapping(mapping_path)
 
-        # Save бланка if uploaded, else use default
+        month = int(request.form.get('month', 1))
+        year = int(request.form.get('year', datetime.now().year))
+
+        drive_structure = None
+        drive_warning = None
+
+        if mapping:
+            try:
+                driver_names = []
+                for reg_info in mapping.values():
+                    full_name = str(reg_info.get('full_name', '')).strip()
+                    short_name = str(reg_info.get('шофьор', '')).strip()
+
+                    if full_name:
+                        driver_names.append(full_name)
+                    elif short_name:
+                        driver_names.append(short_name)
+
+                drive_structure = ensure_month_structure(
+                    GDRIVE_ROOT_FOLDER_ID,
+                    month,
+                    year,
+                    driver_names
+                )
+
+            except Exception as e:
+                traceback.print_exc()
+                drive_warning = f"Google Drive warning: {str(e)}"
+
+                # Save бланка if uploaded, else use default
         if banka_file and banka_file.filename:
             banka_path = os.path.join(temp_dir, 'banka.xls')
             banka_file.save(banka_path)
         else:
             banka_path = DEFAULT_BANKA_PATH
-
         by_driver, unmapped, confidence = build_trips(records, mapping)
 
         # Parse etalon if uploaded
@@ -1472,8 +1527,72 @@ def process_files():
                 etalon_info = f"Грешка при парсване на еталон: {str(e)}"
         else:
             print("[ETALON] No etalon file uploaded")
+        # Качване в Google Drive
+        if drive_structure:
+            try:
+                upload_queue = []  # [(folder_id, filename, bytes, mimetype)]
 
-        # Подготвяме данни за UI
+                # 1) Справка -> папка "Файлове"
+                spravka_buf = generate_spravka(by_driver, month, year)
+                spravka_buf.seek(0)
+                upload_queue.append((
+                    drive_structure['files_folder_id'],
+                    f'spravka_{month:02d}_{year}.xls',
+                    spravka_buf.read(),
+                    'application/vnd.ms-excel'
+                ))
+
+                # 2) Протокол -> папка "Файлове" (ако има)
+                if comparison:
+                    protokol_buf = generate_protokol(comparison, month, year)
+                    protokol_buf.seek(0)
+                    upload_queue.append((
+                        drive_structure['files_folder_id'],
+                        f'protokol_{month:02d}_{year}.xls',
+                        protokol_buf.read(),
+                        'application/vnd.ms-excel'
+                    ))
+
+                # 3) Заповеди -> папките на шофьорите
+                order_num = 1
+                for full_name in sorted(by_driver.keys()):
+                    trips = by_driver[full_name]
+                    if not trips:
+                        continue
+
+                    folder_id = drive_structure['driver_folder_map'].get(full_name)
+                    if not folder_id:
+                        continue
+
+                    for trip in trips:
+                        zapoved_buf = generate_zapoved(banka_path, trip, order_num)
+                        start_str = trip['start_date'].strftime('%d.%m')
+                        end_str = trip['end_date'].strftime('%d.%m.%Y')
+                        filename = f'Заповед_{order_num:03d}_{start_str}-{end_str}.xls'
+
+                        zapoved_buf.seek(0)
+                        upload_queue.append((
+                            folder_id,
+                            filename,
+                            zapoved_buf.read(),
+                            'application/vnd.ms-excel'
+                        ))
+                        order_num += 1
+
+                # Concurrent upload — 10 thread-а
+                ok_count, errs = upload_files_batch(upload_queue, max_workers=10)
+                print(f"[DRIVE] Uploaded {ok_count}/{len(upload_queue)} files")
+                if errs:
+                    drive_warning = f"Drive: {ok_count} OK, {len(errs)} errors: {'; '.join(errs[:3])}"
+
+            except Exception as e:
+                traceback.print_exc()
+                if drive_warning:
+                    drive_warning += f" | Upload warning: {str(e)}"
+                else:
+                    drive_warning = f"Upload warning: {str(e)}"
+
+                # Подготвяме данни за UI
         result_data = []
         order_num = 1
         for full_name in sorted(by_driver.keys()):
@@ -1521,7 +1640,10 @@ def process_files():
         app.config['LAST_BANKA_PATH'] = banka_path
         app.config['LAST_CONFIDENCE'] = confidence
         app.config['LAST_COMPARISON'] = comparison
-
+        app.config['LAST_DRIVE_STRUCTURE'] = drive_structure
+        app.config['LAST_DRIVE_WARNING'] = drive_warning
+        app.config['LAST_MONTH'] = month
+        app.config['LAST_YEAR'] = year
         # Build comparison data for UI
         comparison_data = None
         if comparison:
@@ -1549,6 +1671,7 @@ def process_files():
             'comparison': comparison_data,
             'has_etalon': comparison is not None,
             'etalon_info': etalon_info,
+            'drive_warning': drive_warning,
         })
 
     except Exception as e:
