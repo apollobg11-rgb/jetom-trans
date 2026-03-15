@@ -78,20 +78,19 @@ def load_credentials():
 
     return None
 
-
 def get_drive_service():
-    """Връща Drive service. Пробва: 1) service account, 2) OAuth token."""
-    # Първо опитай service account (работи на Railway без login)
+    """Връща Drive service. Пробва: 1) OAuth token, 2) service account."""
+    # Първо опитай OAuth token (реален потребител с quota)
+    creds = load_credentials()
+    if creds:
+        return build("drive", "v3", credentials=creds)
+
+    # Fallback: service account (за папки, но няма upload quota)
     creds = _load_service_account_credentials()
     if creds:
         return build("drive", "v3", credentials=creds)
 
-    # Fallback: OAuth token (работи локално)
-    creds = load_credentials()
-    if not creds:
-        raise FileNotFoundError("Google OAuth token not found. Open /google-login first.")
-    return build("drive", "v3", credentials=creds)
-
+    raise FileNotFoundError("Google OAuth token not found. Open /google-login first.")
 
 def find_folder(service, name, parent_id):
     safe_name = name.replace("'", "\\'")
