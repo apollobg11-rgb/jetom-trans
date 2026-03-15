@@ -78,6 +78,7 @@ def load_credentials():
 
     return None
 
+
 def get_drive_service():
     """Връща Drive service. Пробва: 1) OAuth token, 2) service account."""
     # Първо опитай OAuth token (реален потребител с quota)
@@ -91,6 +92,7 @@ def get_drive_service():
         return build("drive", "v3", credentials=creds)
 
     raise FileNotFoundError("Google OAuth token not found. Open /google-login first.")
+
 
 def find_folder(service, name, parent_id):
     safe_name = name.replace("'", "\\'")
