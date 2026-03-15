@@ -1377,13 +1377,14 @@ def google_login():
         prompt='consent'
     )
     session['oauth_state'] = state
+    session['code_verifier'] = flow.code_verifier
     return redirect(authorization_url)
-
 
 @app.route('/oauth2callback')
 def oauth2callback():
     state = session.get('oauth_state')
     flow = get_google_flow(state=state)
+    flow.code_verifier = session.get('code_verifier')
     flow.fetch_token(authorization_response=request.url)
     save_credentials(flow.credentials)
     return redirect(url_for('index'))
