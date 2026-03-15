@@ -24,10 +24,8 @@ def _load_service_account_credentials():
     """Опит за зареждане на service account от env variable или файл."""
     # 1. От environment variable (Railway)
     sa_json = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON")
-    print(f"[DEBUG] GOOGLE_SERVICE_ACCOUNT_JSON exists: {sa_json is not None}, len={len(sa_json) if sa_json else 0}")
     if sa_json:
         info = json.loads(sa_json)
-        print(f"[DEBUG] Service account email: {info.get('client_email', 'N/A')}")
         return service_account.Credentials.from_service_account_info(info, scopes=SCOPES)
 
     # 2. От файл (локално)
@@ -35,16 +33,26 @@ def _load_service_account_credentials():
     if os.path.exists(sa_file):
         return service_account.Credentials.from_service_account_file(sa_file, scopes=SCOPES)
 
-    print("[DEBUG] No service account found!")
     return None
 
 
 def get_google_flow(state=None):
-    flow = Flow.from_client_secrets_file(
-        CLIENT_SECRET_FILE,
-        scopes=SCOPES,
-        state=state
-    )
+    # Опит 1: от environment variable (Railway)
+    cs_json = os.environ.get("GOOGLE_CLIENT_SECRET_JSON")
+    if cs_json:
+        client_config = json.loads(cs_json)
+        flow = Flow.from_client_config(
+            client_config,
+            scopes=SCOPES,
+            state=state
+        )
+    else:
+        # Опит 2: от файл (локално)
+        flow = Flow.from_client_secrets_file(
+            CLIENT_SECRET_FILE,
+            scopes=SCOPES,
+            state=state
+        )
     flow.redirect_uri = REDIRECT_URI
     return flow
 
