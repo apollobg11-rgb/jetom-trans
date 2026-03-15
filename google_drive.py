@@ -1,10 +1,12 @@
 import io
+import json
 import mimetypes
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
+from google.oauth2 import service_account
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
@@ -12,10 +14,26 @@ from googleapiclient.http import MediaIoBaseUpload
 SCOPES = ["https://www.googleapis.com/auth/drive"]
 CLIENT_SECRET_FILE = "credentials/client_secret.json"
 TOKEN_FILE = "credentials/token.json"
-REDIRECT_URI = "http://127.0.0.1:5000/oauth2callback"
+REDIRECT_URI = os.environ.get("OAUTH_REDIRECT_URI", "http://127.0.0.1:5000/oauth2callback")
 
 # Thread-local няма нужда — build() е thread-safe, credentials също
 _service_cache = None
+
+
+def _load_service_account_credentials():
+    """Опит за зареждане на service account от env variable или файл."""
+    # 1. От environment variable (Railway)
+    sa_json = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON")
+    if sa_json:
+        info = json.loads(sa_json)
+        return service_account.Credentials.from_service_account_info(info, scopes=SCOPES)
+
+    # 2. От файл (локално)
+    sa_file = "credentials/drive.json"
+    if os.path.exists(sa_file):
+        return service_account.Credentials.from_service_account_file(sa_file, scopes=SCOPES)
+
+    return None
 
 
 def get_google_flow(state=None):
@@ -51,7 +69,13 @@ def load_credentials():
 
 
 def get_drive_service():
-    """Връща Drive service. За concurrent upload всеки thread си прави свой."""
+    """Връща Drive service. Пробва: 1) service account, 2) OAuth token."""
+    # Първо опитай service account (работи на Railway без login)
+    creds = _load_service_account_credentials()
+    if creds:
+        return build("drive", "v3", credentials=creds)
+
+    # Fallback: OAuth token (работи локално)
     creds = load_credentials()
     if not creds:
         raise FileNotFoundError("Google OAuth token not found. Open /google-login first.")
