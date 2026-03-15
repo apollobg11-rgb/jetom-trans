@@ -1583,8 +1583,10 @@ def process_files():
                 ok_count, errs = upload_files_batch(upload_queue, max_workers=10)
                 print(f"[DRIVE] Uploaded {ok_count}/{len(upload_queue)} files")
                 if errs:
+                    for e in errs[:10]:
+                        print(f"[DRIVE ERROR] {e}")
                     drive_warning = f"Drive: {ok_count} OK, {len(errs)} errors: {'; '.join(errs[:3])}"
-
+                
             except Exception as e:
                 traceback.print_exc()
                 if drive_warning:
