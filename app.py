@@ -1732,13 +1732,17 @@ def process_files():
 
                 # 3) Заповеди -> папките на шофьорите
                 order_num = 1
+                driver_map = drive_structure['driver_folder_map']
+                print(f"[DRIVE] driver_folder_map keys ({len(driver_map)}): {list(driver_map.keys())[:5]}...")
+                print(f"[DRIVE] by_driver keys ({len(by_driver)}): {list(sorted(by_driver.keys()))[:5]}...")
                 for full_name in sorted(by_driver.keys()):
                     trips = by_driver[full_name]
                     if not trips:
                         continue
 
-                    folder_id = drive_structure['driver_folder_map'].get(full_name)
+                    folder_id = driver_map.get(full_name)
                     if not folder_id:
+                        print(f"[DRIVE] WARNING: No folder for '{full_name}'")
                         continue
 
                     for trip in trips:
@@ -1883,6 +1887,34 @@ def export_excel():
     except Exception as e:
         traceback.print_exc()
         return jsonify({'error': f'Грешка при генериране на справка: {str(e)}'}), 500
+
+
+@app.route('/export-komandirovki', methods=['POST'])
+def export_komandirovki():
+    """Генерира и сваля обобщена таблица КОМАНДИРОВКИ (.xls)."""
+    try:
+        by_driver = app.config.get('LAST_BY_DRIVER')
+        mapping = app.config.get('LAST_MAPPING')
+        if not by_driver:
+            return jsonify({'error': 'Моля първо обработете файловете'}), 400
+        if not mapping:
+            return jsonify({'error': 'Няма mapping файл — качете Камион_Шофьор'}), 400
+
+        data = request.get_json(silent=True) or {}
+        month = data.get('month', 1)
+        year = data.get('year', 2026)
+
+        kom_buf = generate_komandirovki(by_driver, mapping, month, year)
+
+        return send_file(
+            kom_buf,
+            mimetype='application/vnd.ms-excel',
+            as_attachment=True,
+            download_name=f'komandirovki_{month:02d}_{year}.xls'
+        )
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({'error': f'Грешка при генериране на командировки: {str(e)}'}), 500
 
 
 @app.route('/download-zip', methods=['POST'])

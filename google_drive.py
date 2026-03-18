@@ -79,15 +79,12 @@ def load_credentials():
     return None
 
 
-def get_drive_service(oauth_only=False):
-    """Връща Drive service. Пробва: 1) OAuth token, 2) service account (ако не е oauth_only)."""
+def get_drive_service():
+    """Връща Drive service. Пробва: 1) OAuth token, 2) service account."""
     # Първо опитай OAuth token (реален потребител с quota)
     creds = load_credentials()
     if creds:
         return build("drive", "v3", credentials=creds)
-
-    if oauth_only:
-        raise FileNotFoundError("Google OAuth token not found. Open /google-login first. (Service account disabled for uploads)")
 
     # Fallback: service account (за папки, но няма upload quota)
     creds = _load_service_account_credentials()
@@ -167,7 +164,7 @@ def ensure_month_structure(root_folder_id, month, year, driver_trucks):
 
 def _upload_single_file(folder_id, filename, content_bytes, mimetype):
     """Вътрешна функция за upload на 1 файл — всеки thread си прави service."""
-    service = get_drive_service(oauth_only=True)
+    service = get_drive_service()
     mimetype = mimetype or mimetypes.guess_type(filename)[0] or "application/octet-stream"
     file_metadata = {"name": filename, "parents": [folder_id]}
     media = MediaIoBaseUpload(io.BytesIO(content_bytes), mimetype=mimetype, resumable=False)
@@ -196,7 +193,7 @@ def _upload_or_replace_single_file(folder_id, filename, content_bytes, mimetype)
     Ако файл със същото име вече съществува в папката — презаписва го (update).
     Ако няма — създава нов (create).
     """
-    service = get_drive_service(oauth_only=True)
+    service = get_drive_service()
     mimetype = mimetype or mimetypes.guess_type(filename)[0] or "application/octet-stream"
     media = MediaIoBaseUpload(io.BytesIO(content_bytes), mimetype=mimetype, resumable=False)
 

@@ -150,9 +150,10 @@
       <div class="app-card-hdr">📥 Изтеглете документите</div>
       <div class="app-card-bdy">
         <div class="row g-3">
-          <div class="col-md-4"><button class="btn btn-navy w-100 py-3" id="btnDownloadExcel">📊 Справка</button><div class="form-text text-center mt-1">spravka_MM_YYYY.xls</div></div>
-          <div class="col-md-4"><button class="btn btn-gold w-100 py-3" id="btnDownloadZip">📦 ZIP заповеди</button><div class="form-text text-center mt-1">komandirovki_MM_YYYY.zip</div></div>
-          <div class="col-md-4"><button class="btn btn-warn w-100 py-3" id="btnDownloadProtokol" style="display:none">⚠️ Протокол</button><div class="form-text text-center mt-1" id="protokolHint" style="display:none">protokol_MM_YYYY.xls</div></div>
+          <div class="col-md-3"><button class="btn btn-navy w-100 py-3" id="btnDownloadExcel">📊 Справка</button><div class="form-text text-center mt-1">spravka_MM_YYYY.xls</div></div>
+          <div class="col-md-3"><button class="btn btn-navy w-100 py-3" id="btnDownloadKom">📋 Командировки</button><div class="form-text text-center mt-1">komandirovki_MM_YYYY.xls</div></div>
+          <div class="col-md-3"><button class="btn btn-gold w-100 py-3" id="btnDownloadZip">📦 ZIP заповеди</button><div class="form-text text-center mt-1">komandirovki_MM_YYYY.zip</div></div>
+          <div class="col-md-3"><button class="btn btn-warn w-100 py-3" id="btnDownloadProtokol" style="display:none">⚠️ Протокол</button><div class="form-text text-center mt-1" id="protokolHint" style="display:none">protokol_MM_YYYY.xls</div></div>
         </div>
         <div id="downloadLoading" class="text-center mt-3" style="display:none"><div class="spinner-border" style="color:var(--gold)"></div><span class="ms-2 text-muted">Генерира се...</span></div>
         <div id="downloadError" class="alert alert-danger mt-3" style="display:none"></div>
@@ -214,6 +215,7 @@ document.getElementById('uploadForm').addEventListener('submit',async function(e
 });
 async function dl(url,p,fn){const ld=document.getElementById('downloadLoading'),de=document.getElementById('downloadError');ld.style.display='block';de.style.display='none';try{const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)});if(!r.ok){const d=await r.json();throw new Error(d.error||'Грешка');}const b=await r.blob(),a=document.createElement('a');a.href=URL.createObjectURL(b);const cd=r.headers.get('Content-Disposition');let f=fn;if(cd){const m=cd.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);if(m)f=m[1].replace(/['"]/g,'');}a.download=f;document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(a.href);}catch(e){de.textContent=e.message;de.style.display='block';}finally{ld.style.display='none';}}
 document.getElementById('btnDownloadExcel').addEventListener('click',()=>dl('/export-excel',{month:currentMonth,year:currentYear},`spravka_${String(currentMonth).padStart(2,'0')}_${currentYear}.xls`));
+document.getElementById('btnDownloadKom').addEventListener('click',()=>dl('/export-komandirovki',{month:currentMonth,year:currentYear},`komandirovki_${String(currentMonth).padStart(2,'0')}_${currentYear}.xls`));
 document.getElementById('btnDownloadZip').addEventListener('click',()=>dl('/download-zip',{month:currentMonth,year:currentYear},`komandirovki_${String(currentMonth).padStart(2,'0')}_${currentYear}.zip`));
 document.getElementById('btnDownloadProtokol').addEventListener('click',()=>dl('/download-protokol',{month:currentMonth,year:currentYear},`protokol_${String(currentMonth).padStart(2,'0')}_${currentYear}.xls`));
 </script>
