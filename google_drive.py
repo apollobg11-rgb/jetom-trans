@@ -79,12 +79,15 @@ def load_credentials():
     return None
 
 
-def get_drive_service():
-    """Връща Drive service. Пробва: 1) OAuth token, 2) service account."""
+def get_drive_service(oauth_only=False):
+    """Връща Drive service. Пробва: 1) OAuth token, 2) service account (ако не е oauth_only)."""
     # Първо опитай OAuth token (реален потребител с quota)
     creds = load_credentials()
     if creds:
         return build("drive", "v3", credentials=creds)
+
+    if oauth_only:
+        raise FileNotFoundError("Google OAuth token not found. Open /google-login first. (Service account disabled for uploads)")
 
     # Fallback: service account (за папки, но няма upload quota)
     creds = _load_service_account_credentials()
@@ -126,8 +129,12 @@ def get_or_create_folder(service, name, parent_id):
     return create_folder(service, name, parent_id)
 
 
-def ensure_month_structure(root_folder_id, month, year, driver_names):
-    """Създава месечна папка + подпапки за шофьори + Файлове."""
+def ensure_month_structure(root_folder_id, month, year, driver_trucks):
+    """
+    Създава месечна папка + подпапки за шофьори + Файлове.
+    driver_trucks: dict {full_name: reg_orig} — името и рег. номер на камиона.
+    Папките на шофьорите са "ИМЕ ФАМИЛИЯ — РВ1234АА".
+    """
     service = get_drive_service()
 
     month_names = {
@@ -141,11 +148,14 @@ def ensure_month_structure(root_folder_id, month, year, driver_names):
     files_folder_id = get_or_create_folder(service, "Файлове", month_folder_id)
 
     driver_folder_map = {}
-    for name in sorted(set(driver_names)):
-        clean_name = str(name).strip()
+    for full_name in sorted(driver_trucks.keys()):
+        clean_name = str(full_name).strip()
         if not clean_name:
             continue
-        folder_id = get_or_create_folder(service, clean_name, month_folder_id)
+        truck = str(driver_trucks[full_name]).strip()
+        folder_name = f"{clean_name} — {truck}" if truck else clean_name
+        folder_id = get_or_create_folder(service, folder_name, month_folder_id)
+        # Map by full_name (not folder_name) so process_files can look up by full_name
         driver_folder_map[clean_name] = folder_id
 
     return {
@@ -157,7 +167,7 @@ def ensure_month_structure(root_folder_id, month, year, driver_names):
 
 def _upload_single_file(folder_id, filename, content_bytes, mimetype):
     """Вътрешна функция за upload на 1 файл — всеки thread си прави service."""
-    service = get_drive_service()
+    service = get_drive_service(oauth_only=True)
     mimetype = mimetype or mimetypes.guess_type(filename)[0] or "application/octet-stream"
     file_metadata = {"name": filename, "parents": [folder_id]}
     media = MediaIoBaseUpload(io.BytesIO(content_bytes), mimetype=mimetype, resumable=False)
@@ -186,7 +196,7 @@ def _upload_or_replace_single_file(folder_id, filename, content_bytes, mimetype)
     Ако файл със същото име вече съществува в папката — презаписва го (update).
     Ако няма — създава нов (create).
     """
-    service = get_drive_service()
+    service = get_drive_service(oauth_only=True)
     mimetype = mimetype or mimetypes.guess_type(filename)[0] or "application/octet-stream"
     media = MediaIoBaseUpload(io.BytesIO(content_bytes), mimetype=mimetype, resumable=False)
 

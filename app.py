@@ -212,11 +212,33 @@ def parse_mapping(filepath):
     ws = wb.active
     mapping = {}
 
-    # Detect format: check if column B has reg numbers (format 1) or column A has "REG NAME" (format 2)
+    # Detect format by inspecting headers and structure
     first_val = str(ws.cell(row=1, column=1).value or '').replace('\xa0', ' ').strip()
+    second_col_header = str(ws.cell(row=1, column=2).value or '').replace('\xa0', ' ').strip()
     second_row_b = ws.cell(row=2, column=2).value
 
-    if second_row_b and str(second_row_b).strip():
+    if first_val == '№' and 'амион' in second_col_header:
+        # Format 3: Камион_Шофьор_v2 — col A=№, B=Камион(кир), C=Камион(лат), D=Кратко име, E=Пълно име(ТРЗ)
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            reg_cyr = row[1]       # Камион (кир)
+            reg_lat_val = row[2]   # Камион (лат)
+            short_name = row[3]    # Кратко име
+            full_name_trz = row[4] # Пълно име (ТРЗ)
+            if not reg_lat_val or not short_name:
+                continue
+            shofyor_clean = str(short_name).strip().upper()
+            if shofyor_clean in SKIP_DRIVERS:
+                continue
+            reg_lat = str(reg_lat_val).strip().upper().replace(' ', '').replace('-', '')
+            full = str(full_name_trz).strip().upper() if full_name_trz else get_full_name(shofyor_clean)
+            reg_orig = str(reg_cyr).strip() if reg_cyr else str(reg_lat_val).strip()
+            mapping[reg_lat] = {
+                'шофьор': shofyor_clean,
+                'full_name': full,
+                'ремарке': '',
+                'reg_orig': reg_orig
+            }
+    elif second_row_b and str(second_row_b).strip():
         # Format 1: КОЛИ_РЕМАРКЕТА — col B=камион, C=ремарке, D=шофьор
         for row in ws.iter_rows(min_row=2, values_only=True):
             reg = row[1]
@@ -1167,9 +1189,10 @@ def build_trips(all_records, mapping, etalon_eur=None):
 # СТЪПКА 3: СПРАВКА КОМАНДИРОВКИ (Excel)
 # ============================================================
 
-def generate_spravka(by_driver, month=1, year=2026):
+def generate_spravka(by_driver, month=1, year=2026, mapping=None):
     """
     Генерира СПРАВКА КОМАНДИРОВКИ по формата от плана.
+    mapping: dict reg_lat → {шофьор, full_name, ремарке, reg_orig} — за показване на камион.
     Връща BytesIO с .xls файл.
     """
     wb = xlwt.Workbook(encoding='utf-8')
@@ -1179,6 +1202,7 @@ def generate_spravka(by_driver, month=1, year=2026):
     bold = xlwt.easyxf('font: bold true, height 220')
     bold_center = xlwt.easyxf('font: bold true, height 220; alignment: horiz centre')
     normal = xlwt.easyxf('font: height 200')
+    truck_style = xlwt.easyxf('font: height 180, italic true')
     total_style = xlwt.easyxf('font: bold true, height 200; pattern: pattern solid, fore_colour light_yellow')
 
     month_names = {1: 'ЯНУАРИ', 2: 'ФЕВРУАРИ', 3: 'МАРТ', 4: 'АПРИЛ',
@@ -1205,6 +1229,14 @@ def generate_spravka(by_driver, month=1, year=2026):
     order_num = 1
     grand_total_eur = 0
 
+    # Build full_name → reg_orig lookup from mapping
+    _fn_to_truck = {}
+    if mapping:
+        for reg_info in mapping.values():
+            fn = reg_info.get('full_name', '').strip()
+            if fn:
+                _fn_to_truck[fn] = reg_info.get('reg_orig', '')
+
     for full_name in sorted(by_driver.keys()):
         trips = by_driver[full_name]
         if not trips:
@@ -1223,6 +1255,12 @@ def generate_spravka(by_driver, month=1, year=2026):
             if first:
                 ws.write(row, 0, order_num, normal)
                 ws.write(row, 1, full_name, bold)
+                row += 1
+                # Truck line under driver name
+                truck_reg = _fn_to_truck.get(full_name, '')
+                if truck_reg:
+                    ws.write(row, 1, truck_reg, truck_style)
+                    row += 1
                 first = False
             ws.write(row, 2, trip['start_date'], date_style)
             ws.write(row, 3, trip['end_date'], date_style)
@@ -1251,6 +1289,127 @@ def generate_spravka(by_driver, month=1, year=2026):
         ws.write(row, 1, country, normal)
         ws.write(row, 2, rate, normal)
         row += 1
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return output
+
+
+def generate_komandirovki(by_driver, mapping, month=1, year=2026):
+    """
+    Генерира обобщена таблица КОМАНДИРОВКИ (.xls) за ТРЗ.
+    Колони: №, Имена работници, Камион, (празна), Чужбина ДНИ, Чужбина ЕВРО,
+            България ДНИ, България ЕВРО, Общо работни дни, Всичко в ЕВРО.
+    ВСИЧКИ шофьори от mapping присъстват — дори без чуждестранни дни.
+    """
+    wb = xlwt.Workbook(encoding='utf-8')
+    ws = wb.add_sheet('Командировки')
+
+    bold = xlwt.easyxf('font: bold true, height 220')
+    bold_center = xlwt.easyxf('font: bold true, height 200; alignment: horiz centre')
+    normal = xlwt.easyxf('font: height 200')
+    total_style = xlwt.easyxf('font: bold true, height 200; pattern: pattern solid, fore_colour light_yellow')
+
+    month_names = {1: 'ЯНУАРИ', 2: 'ФЕВРУАРИ', 3: 'МАРТ', 4: 'АПРИЛ',
+                   5: 'МАЙ', 6: 'ЮНИ', 7: 'ЮЛИ', 8: 'АВГУСТ',
+                   9: 'СЕПТЕМВРИ', 10: 'ОКТОМВРИ', 11: 'НОЕМВРИ', 12: 'ДЕКЕМВРИ'}
+    month_name = month_names.get(month, str(month))
+
+    ws.write_merge(0, 0, 0, 9, f'КОМАНДИРОВКИ  М.{month_name}  {year} ГОД.', bold)
+
+    # Headers
+    headers = ['№', 'Имена работници', 'Камион', '', 'Чужбина ДНИ', 'Чужбина ЕВРО',
+               'България ДНИ', 'България ЕВРО', 'Общо работни дни', 'Всичко в ЕВРО']
+    for c, h in enumerate(headers):
+        ws.write(2, c, h, bold_center)
+
+    # Column widths
+    ws.col(0).width = 1500
+    ws.col(1).width = 10000
+    ws.col(2).width = 4000
+    ws.col(3).width = 1000
+    ws.col(4).width = 3500
+    ws.col(5).width = 3500
+    ws.col(6).width = 3500
+    ws.col(7).width = 3500
+    ws.col(8).width = 4000
+    ws.col(9).width = 4000
+
+    working_days = _working_days_in_month(month, year)
+
+    # Build full_name → reg_orig lookup
+    fn_to_truck = {}
+    if mapping:
+        for reg_info in mapping.values():
+            fn = reg_info.get('full_name', '').strip()
+            if fn and fn not in fn_to_truck:
+                fn_to_truck[fn] = reg_info.get('reg_orig', '')
+
+    # Collect ALL unique driver full_names from mapping
+    all_drivers = set()
+    if mapping:
+        for reg_info in mapping.values():
+            fn = reg_info.get('full_name', '').strip()
+            short = reg_info.get('шофьор', '').strip()
+            if short in SKIP_DRIVERS:
+                continue
+            if fn:
+                all_drivers.add(fn)
+    # Also add drivers from by_driver (in case they're not in mapping)
+    all_drivers.update(by_driver.keys())
+
+    row = 3
+    num = 1
+    grand_foreign_days = 0
+    grand_foreign_eur = 0
+    grand_bg_days = 0
+    grand_bg_eur = 0
+    grand_working = 0
+    grand_total_eur = 0
+
+    for full_name in sorted(all_drivers):
+        trips = by_driver.get(full_name, [])
+        foreign_days = sum(t['days'] for t in trips)
+        foreign_eur = sum(t.get('eur_total', t['days'] * t['eur_rate']) for t in trips)
+        bg_days = working_days - foreign_days
+        if bg_days < 0:
+            bg_days = 0
+        bg_eur = bg_days * BGN_PER_DAY_BG
+        total_eur = foreign_eur  # Всичко в ЕВРО = само чужбина EUR (БГ е в лева)
+
+        truck = fn_to_truck.get(full_name, '')
+
+        ws.write(row, 0, num, normal)
+        ws.write(row, 1, full_name, normal)
+        ws.write(row, 2, truck, normal)
+        # col 3 is empty
+        ws.write(row, 4, foreign_days, normal)
+        ws.write(row, 5, round(foreign_eur, 2), normal)
+        ws.write(row, 6, bg_days, normal)
+        ws.write(row, 7, round(bg_eur, 2), normal)
+        ws.write(row, 8, working_days, normal)
+        ws.write(row, 9, round(total_eur, 2), normal)
+
+        grand_foreign_days += foreign_days
+        grand_foreign_eur += foreign_eur
+        grand_bg_days += bg_days
+        grand_bg_eur += bg_eur
+        grand_working += working_days
+        grand_total_eur += total_eur
+
+        row += 1
+        num += 1
+
+    # Totals row
+    row += 1
+    ws.write(row, 1, 'ОБЩО', total_style)
+    ws.write(row, 4, grand_foreign_days, total_style)
+    ws.write(row, 5, round(grand_foreign_eur, 2), total_style)
+    ws.write(row, 6, grand_bg_days, total_style)
+    ws.write(row, 7, round(grand_bg_eur, 2), total_style)
+    ws.write(row, 8, grand_working, total_style)
+    ws.write(row, 9, round(grand_total_eur, 2), total_style)
 
     output = io.BytesIO()
     wb.save(output)
@@ -1322,10 +1481,11 @@ def generate_zapoved(banka_path, trip, order_num):
 # СТЪПКА 5: ZIP АРХИВ
 # ============================================================
 
-def generate_zip(by_driver, banka_path, month=1, year=2026, comparison=None):
+def generate_zip(by_driver, banka_path, month=1, year=2026, comparison=None, mapping=None):
     """
     Генерира ZIP с:
     - СПРАВКА_Командировки_Януари_2026.xls (в корена)
+    - КОМАНДИРОВКИ_Януари_2026.xls (обобщена таблица)
     - ПРОТОКОЛ_Несъответствия_Януари_2026.xls (ако има comparison)
     - [ПЪЛНО ИМЕ]/Заповед_NNN_дд.мм-дд.мм.гггг.xls (за всеки шофьор)
     """
@@ -1339,8 +1499,13 @@ def generate_zip(by_driver, banka_path, month=1, year=2026, comparison=None):
 
     with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
         # Справка
-        spravka = generate_spravka(by_driver, month, year)
+        spravka = generate_spravka(by_driver, month, year, mapping=mapping)
         zf.writestr(f'spravka_{month:02d}_{year}.xls', spravka.read())
+
+        # Командировки (обобщена таблица)
+        if mapping:
+            kom = generate_komandirovki(by_driver, mapping, month, year)
+            zf.writestr(f'komandirovki_{month:02d}_{year}.xls', kom.read())
 
         # Протокол (ако има comparison)
         if comparison:
@@ -1441,21 +1606,21 @@ def process_files():
 
         if mapping:
             try:
-                driver_names = []
+                driver_trucks = {}
                 for reg_info in mapping.values():
                     full_name = str(reg_info.get('full_name', '')).strip()
                     short_name = str(reg_info.get('шофьор', '')).strip()
+                    reg_orig = str(reg_info.get('reg_orig', '')).strip()
 
-                    if full_name:
-                        driver_names.append(full_name)
-                    elif short_name:
-                        driver_names.append(short_name)
+                    name = full_name or short_name
+                    if name and name not in SKIP_DRIVERS:
+                        driver_trucks[name] = reg_orig
 
                 drive_structure = ensure_month_structure(
                     GDRIVE_ROOT_FOLDER_ID,
                     month,
                     year,
-                    driver_names
+                    driver_trucks
                 )
 
             except Exception as e:
@@ -1534,7 +1699,7 @@ def process_files():
                 upload_queue = []  # [(folder_id, filename, bytes, mimetype)]
 
                 # 1) Справка -> папка "Файлове"
-                spravka_buf = generate_spravka(by_driver, month, year)
+                spravka_buf = generate_spravka(by_driver, month, year, mapping=mapping)
                 spravka_buf.seek(0)
                 upload_queue.append((
                     drive_structure['files_folder_id'],
@@ -1542,6 +1707,17 @@ def process_files():
                     spravka_buf.read(),
                     'application/vnd.ms-excel'
                 ))
+
+                # 1.5) Командировки (обобщена таблица) -> папка "Файлове"
+                if mapping:
+                    kom_buf = generate_komandirovki(by_driver, mapping, month, year)
+                    kom_buf.seek(0)
+                    upload_queue.append((
+                        drive_structure['files_folder_id'],
+                        f'komandirovki_{month:02d}_{year}.xls',
+                        kom_buf.read(),
+                        'application/vnd.ms-excel'
+                    ))
 
                 # 2) Протокол -> папка "Файлове" (ако има)
                 if comparison:
@@ -1647,6 +1823,7 @@ def process_files():
         app.config['LAST_DRIVE_WARNING'] = drive_warning
         app.config['LAST_MONTH'] = month
         app.config['LAST_YEAR'] = year
+        app.config['LAST_MAPPING'] = mapping
         # Build comparison data for UI
         comparison_data = None
         if comparison:
@@ -1694,7 +1871,7 @@ def export_excel():
         month = data.get('month', 1)
         year = data.get('year', 2026)
 
-        spravka_buf = generate_spravka(by_driver, month, year)
+        spravka_buf = generate_spravka(by_driver, month, year, mapping=app.config.get('LAST_MAPPING'))
         month_name = MONTH_NAMES.get(month, str(month))
 
         return send_file(
@@ -1723,7 +1900,7 @@ def download_zip():
         banka_path = app.config.get('LAST_BANKA_PATH', DEFAULT_BANKA_PATH)
         comparison = app.config.get('LAST_COMPARISON')
 
-        zip_buf = generate_zip(by_driver, banka_path, month, year, comparison)
+        zip_buf = generate_zip(by_driver, banka_path, month, year, comparison, mapping=app.config.get('LAST_MAPPING'))
         month_name = MONTH_NAMES.get(month, str(month))
 
         return send_file(
