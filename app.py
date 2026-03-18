@@ -1376,7 +1376,7 @@ def generate_komandirovki(by_driver, mapping, month=1, year=2026):
         if bg_days < 0:
             bg_days = 0
         bg_eur = bg_days * BGN_PER_DAY_BG
-        total_eur = foreign_eur  # Всичко в ЕВРО = само чужбина EUR (БГ е в лева)
+        total_eur = foreign_eur + bg_eur  # Всичко в ЕВРО = чужбина EUR + България EUR (11 EUR/ден)
 
         truck = fn_to_truck.get(full_name, '')
 

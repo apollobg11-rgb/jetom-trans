@@ -86,9 +86,10 @@ def get_drive_service():
     if creds:
         return build("drive", "v3", credentials=creds)
 
-    # Fallback: service account (за папки, но няма upload quota)
+    # Fallback: service account (за папки, но няма upload quota за файлове!)
     creds = _load_service_account_credentials()
     if creds:
+        print("[DRIVE] WARNING: Using Service Account — file uploads will FAIL (no storage quota). Visit /google-login to fix.")
         return build("drive", "v3", credentials=creds)
 
     raise FileNotFoundError("Google OAuth token not found. Open /google-login first.")
