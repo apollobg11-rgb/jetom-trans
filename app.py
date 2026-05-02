@@ -159,17 +159,42 @@ def detect_country(address):
     addr_lower = addr.lower()
     if 'България' in addr or 'Bulgaria' in addr or 'българия' in addr_lower:
         return 'България'
+
+    # Северна Македония — ПРЕДИ Гърция! (гръцките региони "Централна Македония"
+    # и "Източна Македония" трябва да НЕ хващат тук)
+    if any(m in addr for m in [
+        'Северна Македония', 'North Macedonia', 'Makedonija',
+        'Северна Македонија', 'Југословенска Репуб. Македонија',
+        'Скопие', 'Скопје', 'Skopje',
+        'Општина', 'Град Скопје',
+        'Гази Баба', 'Гевгелија', 'Гевгели',
+        'Кавадарци', 'Битола', 'Куманово', 'Велес', 'Тетово',
+        'Прилеп', 'Штип', 'Кочани', 'Кичево', 'Охрид', 'Струмица',
+        'ArcelorMittal', 'Деве Баир',
+        'Крива Паланка', 'Старо Нагоричане', 'Росоман',
+        'Илинден', 'Ранковце', 'Кратово', 'Петровец',
+    ]):
+        return 'Македония'
+
     if any(m in addr for m in [
         'Ελλάδα', 'Ελληνικ', 'Δήμος', 'Περιφερ', 'Αλεξανδρ', 'Θεσσαλονίκ',
         'Αθήνα', 'Πειραι', 'Κομοτηνή', 'Ξάνθη', 'Καβάλα', 'Δράμα', 'Σέρρες',
         'Ορεστιάδα', 'Διδυμότειχο', 'Εβρος', 'Ροδόπη',
         'Greece', 'Гърция', 'Hellas', 'Ελλάς',
+        'Ελληνικη Δημοκρατια',
+        'Σίνδος', 'Κατερίνη', 'Κατερι', 'Катерини',
+        'Κιλκίς', 'Προμαχών', 'Промахона',
+        'Εχέδωρο', 'Καλλιθέα', 'Λαχανάς', 'Άσσηρος',
+        'Αλεξανδρούπολη', 'Φέρες', 'Τρίγωνο', 'Κυπρίνος',
+        'Централна Македония', 'Източна Македония',
+        'Κεντρική Μακεδονία', 'Ανατολική Μακεδονία',
     ]):
         return 'Гърция'
     if any(m in addr for m in [
         'România', 'Romania', 'Румъния', 'Românã',
         'București', 'Bucuresti', 'Constanța', 'Giurgiu', 'Ruse',
         'Craiova', 'Timișoara', 'Cluj', 'Brașov', 'Sibiu',
+        'Ialomița', 'Călărași',
     ]):
         return 'Румъния'
     if any(m in addr for m in [
@@ -183,11 +208,12 @@ def detect_country(address):
         'Beograd', 'Београд', 'Niš', 'Ниш', 'Novi Sad',
     ]):
         return 'Сърбия'
-    if any(m in addr for m in [
-        'Македония', 'Macedonia', 'Северна Македония', 'North Macedonia',
-        'Скопие', 'Skopje', 'Makedonija',
-    ]):
-        return 'Македония'
+    # Fallback за "Македония" без "Централна"/"Източна" — ако стигне дотук,
+    # значи не е хванато от горните правила
+    if 'Македония' in addr or 'Macedonia' in addr:
+        # Проверка дали НЕ е гръцки регион
+        if 'Централна' not in addr and 'Източна' not in addr and 'Κεντρική' not in addr and 'Ανατολική' not in addr:
+            return 'Македония'
     if any(m in addr for m in [
         'Албания', 'Albania', 'Shqipëri', 'Shqiperi', 'Tirana', 'Tiranë',
     ]):
@@ -332,6 +358,12 @@ def _is_gkpp_turkey(road_str):
     return 'АНДРЕЕВО' in r and ('ГКПП' in r or 'КАПИТАН' in r)
 
 
+def _is_gkpp_macedonia(road_str):
+    """Проверява дали пътят минава през ГКПП към Македония."""
+    r = road_str.upper()
+    return ('ГЮЕШЕВО' in r or 'GYUESHEVO' in r) and ('ГКПП' in r or 'ГРАНИЧЕН' in r or 'ДЕВЕ БАИР' in r or 'DEVE' in r)
+
+
 def parse_gps2(filepath):
     """
     Парсва GPS Система 2 (.xlsx) — 33 sheets, sheet name = рег. номер.
@@ -343,6 +375,8 @@ def parse_gps2(filepath):
         ws = wb[sheet_name]
         reg = sheet_name.strip()
         for row in ws.iter_rows(min_row=2, values_only=True):
+            if len(row) < 13:
+                continue
             start_str = row[4]   # E: Начална дата
             end_str = row[12]    # M: Крайна дата
             addr_from = row[2]   # C: Начален адрес
@@ -375,6 +409,12 @@ def parse_gps2(filepath):
                 country_from = 'Гърция'
             if _is_gkpp_greece(road_to_str) and country_to == 'България':
                 country_to = 'Гърция'
+
+            # ГКПП Гюешево → граница с Македония
+            if _is_gkpp_macedonia(road_from_str) and country_from == 'България':
+                country_from = 'Македония'
+            if _is_gkpp_macedonia(road_to_str) and country_to == 'България':
+                country_to = 'Македония'
 
             records.append({
                 'reg': reg,
@@ -1221,8 +1261,9 @@ def generate_spravka(by_driver, month=1, year=2026, mapping=None):
     ws.write(2, 4, 'ДНИ', bold_center)
     ws.write(2, 5, 'ЕВРО', bold_center)
     ws.write(2, 6, 'СУМА  Е', bold_center)
-    ws.write(2, 7, 'EUR ЧУЖБИНА', bold_center)
-    ws.write(2, 8, 'КОМ Б-Я ДНИ', bold_center)
+    ws.write(2, 7, 'ДЪРЖАВА', bold_center)
+    ws.write(2, 8, 'EUR ЧУЖБИНА', bold_center)
+    ws.write(2, 9, 'КОМ Б-Я ДНИ', bold_center)
     ws.write(3, 0, 'ПО РЕД', bold_center)
 
     row = 4
@@ -1267,13 +1308,14 @@ def generate_spravka(by_driver, month=1, year=2026, mapping=None):
             ws.write(row, 4, trip['days'], normal)
             ws.write(row, 5, trip['eur_rate'], normal)
             ws.write(row, 6, eur_sum, normal)
+            ws.write(row, 7, trip.get('country', ''), normal)
             row += 1
 
         # Ред "За получаване"
         ws.write(row, 4, total_days, total_style)
         ws.write(row, 6, total_eur, total_style)
-        ws.write(row, 7, total_eur, total_style)
-        ws.write(row, 8, bg_days, total_style)
+        ws.write(row, 8, total_eur, total_style)
+        ws.write(row, 9, bg_days, total_style)
         row += 1
         ws.write(row, 1, 'За получаване', bold)
         row += 2
