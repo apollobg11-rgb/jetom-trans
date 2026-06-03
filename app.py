@@ -923,96 +923,72 @@ BG_HOLIDAYS = {
 
 def _state_machine_foreign_days(recs):
     """
-    State machine подход за определяне на дни в чужбина.
+    Определяне на дни в чужбина по календарен ден (rewrite v2 — 06.2026).
 
-    Състояния: IN_BG, OUTSIDE_BG
-    Преходи:
-      IN_BG → OUTSIDE_BG: когато c_from=BG и c_to=чужбина
-      OUTSIDE_BG → OUTSIDE_BG: когато и двата адреса са чужди (смяна на държава)
-      OUTSIDE_BG → IN_BG: когато c_to=BG
+    Принцип:
+      - Държавата на даден ден = държавата на ПОСЛЕДНИЯ чужд endpoint за деня
+        (ден на пресичане се води по дестинацията — потвърдено от клиента,
+         напр. Гърция->Македония в рамките на деня => денят е Македония).
+      - Курсът се ЗАТВАРЯ веднага щом ден завърши в България (последен запис
+        с краен адрес в БГ). Така не се надуват дни, в които камионът се е
+        прибрал и е стоял в БГ (предишният бъг — back-fill до следващото излизане).
+      - Дни на престой в чужбина (без GPS записи) се запълват само в пролука
+        между два чужди дни, ако предходният ден НЕ е завършил в БГ и в пролуката
+        няма никаква активност в БГ.
 
     Връща:
-      foreign_days: {date → country_code} за всички дни в чужбина
-      trip_boundaries: list of (start_date, end_date) — всяко излизане/връщане е отделен trip
+      foreign_days: {date -> country}
+      trip_boundaries: [(start_date, end_date), ...] — отделен курс на всяко
+        излизане; нов курс започва и след ден, завършил в БГ.
     """
     recs_sorted = sorted(recs, key=lambda x: x['start'])
 
-    state = 'IN_BG'
-    trip_start = None
-    current_country = None
-    foreign_days = {}  # date → country code
-    trip_boundaries = []  # [(start_date, end_date), ...]
+    day_last_foreign = {}   # date -> държава (последен чужд endpoint за деня)
+    day_has_foreign = set()
+    day_has_bg = set()
+    day_ends_bg = {}        # date -> bool (последният запис за деня завършва в БГ)
 
     for r in recs_sorted:
+        d = r['start'].date()
         cf = r.get('country_from')
         ct = r.get('country_to')
+        for c in (cf, ct):
+            if c == 'България':
+                day_has_bg.add(d)
+            elif c:  # чужда държава (не None / празен адрес)
+                day_has_foreign.add(d)
+                day_last_foreign[d] = c  # по-късните записи презаписват => последен печели
+        # завършва ли денят в БГ (по краен адрес на последния запис)
+        if ct == 'България':
+            day_ends_bg[d] = True
+        elif ct:
+            day_ends_bg[d] = False
 
-        if state == 'IN_BG':
-            if cf == 'България' and ct and ct != 'България':
-                # Излизане от България
-                state = 'OUTSIDE_BG'
-                trip_start = r['start'].date()
-                current_country = ct
-                # Маркирай деня на излизане
-                _mark_day(foreign_days, trip_start, ct)
+    foreign_days = {d: day_last_foreign[d] for d in day_has_foreign}
 
-        elif state == 'OUTSIDE_BG':
-            if ct == 'България' and cf and cf != 'България':
-                # Връщане в България
-                ret_date = r['start'].date()
-                # Маркирай всички дни от trip_start до ret_date
-                d = trip_start
-                while d <= ret_date:
-                    _mark_day(foreign_days, d, current_country)
-                    d += timedelta(days=1)
-                # Маркирай и деня на връщане с държавата на тръгване
-                _mark_day(foreign_days, ret_date, cf)
-                # Запиши trip boundary
-                trip_boundaries.append((trip_start, ret_date))
-                state = 'IN_BG'
-                trip_start = None
-                current_country = None
+    # Запълване на дни на престой в чужбина (без GPS записи)
+    sorted_f = sorted(foreign_days.keys())
+    for i in range(1, len(sorted_f)):
+        prev_d, cur_d = sorted_f[i - 1], sorted_f[i]
+        gap = (cur_d - prev_d).days
+        if gap > 1:
+            inter = [prev_d + timedelta(days=k) for k in range(1, gap)]
+            if (not day_ends_bg.get(prev_d, False)) and (not any(g in day_has_bg for g in inter)):
+                for g in inter:
+                    foreign_days[g] = foreign_days[prev_d]
 
-            elif cf and cf != 'България' and ct and ct != 'България':
-                # Движение в чужбина (може смяна на държава)
-                today = r['start'].date()
-                # Ако е нова държава с по-висока ставка, обнови
-                for c in [cf, ct]:
-                    if c and c != 'България':
-                        _mark_day(foreign_days, today, c)
-                        if EUR_RATES.get(c, 0) > EUR_RATES.get(current_country, 0):
-                            current_country = c
-                # Запълни дни от trip_start до днес
-                if trip_start:
-                    d = trip_start
-                    while d <= today:
-                        _mark_day(foreign_days, d, current_country)
-                        d += timedelta(days=1)
-
-            elif cf == 'България' and ct and ct != 'България':
-                # Ново излизане докато сме OUTSIDE? (рядко, но възможно при GPS gaps)
-                # Приключи текущия trip
-                today = r['start'].date()
-                if trip_start:
-                    prev_date = today - timedelta(days=1)
-                    d = trip_start
-                    while d <= prev_date:
-                        _mark_day(foreign_days, d, current_country)
-                        d += timedelta(days=1)
-                    trip_boundaries.append((trip_start, prev_date))
-                # Започни нов trip
-                trip_start = today
-                current_country = ct
-                _mark_day(foreign_days, today, ct)
-
-    # Ако сме все още OUTSIDE_BG в края на месеца
-    if state == 'OUTSIDE_BG' and trip_start:
-        last_date = recs_sorted[-1]['end'].date()
-        d = trip_start
-        while d <= last_date:
-            _mark_day(foreign_days, d, current_country)
-            d += timedelta(days=1)
-        trip_boundaries.append((trip_start, last_date))
+    # Граници на курсове: разделяме при пролука > 1 ден ИЛИ когато предходният
+    # чужд ден е завършил в БГ (прибиране у дома => нов курс).
+    trip_boundaries = []
+    sf = sorted(foreign_days.keys())
+    if sf:
+        cs = prev = sf[0]
+        for d in sf[1:]:
+            if (d - prev).days > 1 or day_ends_bg.get(prev, False):
+                trip_boundaries.append((cs, prev))
+                cs = d
+            prev = d
+        trip_boundaries.append((cs, prev))
 
     return foreign_days, trip_boundaries
 
